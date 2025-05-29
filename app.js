@@ -5,14 +5,39 @@ class OrderApp {
         this.orders = [];
         this.currentEditId = null;
         this.apiBaseUrl = './api'; // API 기본 URL
+        
+        // 로그인 시스템 관련
+        this.userConfig = null;
+        this.currentUser = null;
+        this.sessionTimeout = null;
+        this.isLoggedIn = false;
+        
         this.init();
     }
 
     async init() {
+        // 사용자 설정 로드
+        await this.loadUserConfig();
+        
+        // 로그인 상태 확인
+        this.checkLoginStatus();
+        
+        // 로그인되지 않은 경우 로그인 화면 표시
+        if (!this.isLoggedIn) {
+            this.showLoginScreen();
+            this.setupLoginEventListeners();
+            return;
+        }
+        
+        // 로그인된 경우 메인 앱 초기화
+        await this.initMainApp();
+    }
+    
+    async initMainApp() {
         await this.loadDatabase();
         this.setupEventListeners();
         this.populateSelects();
-        await this.loadOrders(); // API에서 주문 로드
+        await this.loadOrders(); // localStorage에서 주문 로드
         this.updateUI();
         
         // 오늘 날짜를 기본값으로 설정
@@ -20,6 +45,157 @@ class OrderApp {
         
         // PWA 설치 처리
         this.setupPWA();
+        
+        // 메인 앱 표시
+        this.showMainApp();
+    }
+
+    // 사용자 설정 로드
+    async loadUserConfig() {
+        try {
+            const response = await fetch('./user_config.json');
+            if (!response.ok) {
+                throw new Error('사용자 설정 파일을 찾을 수 없습니다.');
+            }
+            this.userConfig = await response.json();
+            console.log('사용자 설정을 성공적으로 로드했습니다.');
+        } catch (error) {
+            console.error('사용자 설정 로딩 실패:', error);
+            this.showNotification('사용자 설정을 불러올 수 없습니다.', 'error');
+            // 기본 설정 사용
+            this.userConfig = this.getDefaultUserConfig();
+        }
+    }
+
+    // 기본 사용자 설정
+    getDefaultUserConfig() {
+        return {
+            users: {
+                "김정진": { pin: "1234", name: "김정진", role: "영업팀장" },
+                "박경범": { pin: "5678", name: "박경범", role: "영업사원" },
+                "이선화": { pin: "9012", name: "이선화", role: "영업사원" },
+                "신준호": { pin: "3456", name: "신준호", role: "영업사원" }
+            },
+            settings: {
+                max_login_attempts: 5
+            }
+        };
+    }
+
+    // 로그인 상태 확인 (세션 만료 없음)
+    checkLoginStatus() {
+        const loginData = localStorage.getItem('trkorea_login');
+        if (loginData) {
+            const parsed = JSON.parse(loginData);
+            this.currentUser = parsed.user;
+            this.isLoggedIn = true;
+        } else {
+            this.isLoggedIn = false;
+        }
+    }
+
+    // 로그인 화면 표시
+    showLoginScreen() {
+        document.getElementById('loginScreen').classList.add('active');
+        document.getElementById('mainApp').classList.add('hidden');
+    }
+
+    // 메인 앱 표시
+    showMainApp() {
+        document.getElementById('loginScreen').classList.remove('active');
+        document.getElementById('mainApp').classList.remove('hidden');
+        
+        // 사용자 이름 표시
+        const currentUserElement = document.getElementById('currentUser');
+        if (currentUserElement && this.currentUser) {
+            currentUserElement.textContent = `${this.currentUser.name} (${this.currentUser.role})`;
+        }
+    }
+
+    // 로그인 이벤트 리스너 설정
+    setupLoginEventListeners() {
+        const loginBtn = document.getElementById('loginBtn');
+        const loginPin = document.getElementById('loginPin');
+        const logoutBtn = document.getElementById('logoutBtn');
+
+        if (loginBtn) {
+            loginBtn.addEventListener('click', () => this.handleLogin());
+        }
+
+        if (loginPin) {
+            loginPin.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.handleLogin();
+                }
+            });
+        }
+
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => this.handleLogout());
+        }
+    }
+
+    // 로그인 처리
+    async handleLogin() {
+        const managerSelect = document.getElementById('loginManager');
+        const pinInput = document.getElementById('loginPin');
+        
+        const selectedManager = managerSelect.value;
+        const enteredPin = pinInput.value;
+
+        if (!selectedManager) {
+            this.showNotification('담당자를 선택해주세요.', 'error');
+            return;
+        }
+
+        if (!enteredPin || enteredPin.length !== 4) {
+            this.showNotification('4자리 PIN 번호를 입력해주세요.', 'error');
+            return;
+        }
+
+        // PIN 확인
+        const user = this.userConfig.users[selectedManager];
+        if (!user || user.pin !== enteredPin) {
+            this.showNotification('PIN 번호가 틀렸습니다.', 'error');
+            pinInput.value = '';
+            return;
+        }
+
+        // 로그인 성공
+        this.currentUser = user;
+        this.isLoggedIn = true;
+
+        // 로그인 정보 저장 (세션 만료 없음)
+        const loginData = {
+            user: user,
+            loginTime: new Date().getTime()
+        };
+        localStorage.setItem('trkorea_login', JSON.stringify(loginData));
+
+        // 성공 메시지
+        this.showNotification(`${user.name}님, 환영합니다!`, 'success');
+
+        // 메인 앱 초기화
+        await this.initMainApp();
+    }
+
+    // 로그아웃 처리
+    handleLogout() {
+        if (confirm('로그아웃 하시겠습니까?')) {
+            this.currentUser = null;
+            this.isLoggedIn = false;
+            localStorage.removeItem('trkorea_login');
+            
+            this.showNotification('로그아웃되었습니다.', 'success');
+            
+            // 로그인 화면으로 전환
+            this.showLoginScreen();
+            
+            // 페이지 새로고침
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        }
     }
 
     // API 호출 헬퍼 메서드
@@ -302,7 +478,7 @@ class OrderApp {
         document.getElementById('totalAmount').textContent = total.toLocaleString() + '원';
     }
 
-    // 주문 저장 (API 사용)
+    // 주문 저장 (localStorage 사용)
     async saveOrder() {
         const formData = this.getFormData();
         
@@ -313,18 +489,31 @@ class OrderApp {
         try {
             this.showLoading(true);
 
+            // 고유 ID 생성
+            if (!formData.id) {
+                formData.id = 'order_' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+            formData.createdAt = new Date().toISOString();
+
             if (this.currentEditId) {
                 // 주문 수정
-                await this.apiCall(`/orders/${this.currentEditId}`, 'PUT', formData);
+                const orderIndex = this.orders.findIndex(order => order.id === this.currentEditId);
+                if (orderIndex !== -1) {
+                    formData.id = this.currentEditId;
+                    formData.updatedAt = new Date().toISOString();
+                    this.orders[orderIndex] = formData;
+                }
                 this.showNotification('주문이 성공적으로 수정되었습니다.', 'success');
                 this.currentEditId = null;
             } else {
                 // 신규 주문 추가
-                await this.apiCall('/orders', 'POST', formData);
-                this.showNotification('주문이 성공적으로 저장되었습니다. (MOBILE_LOG.json)', 'success');
+                this.orders.push(formData);
+                this.showNotification('주문이 성공적으로 저장되었습니다.', 'success');
             }
 
-            await this.loadOrders(); // 서버에서 최신 데이터 다시 로드
+            // localStorage에 저장
+            localStorage.setItem('trkorea_orders', JSON.stringify(this.orders));
+            
             this.resetForm();
             this.updateUI();
 
@@ -655,16 +844,19 @@ class OrderApp {
         this.showNotification('주문을 불러왔습니다. 수정 후 저장해주세요.', 'success');
     }
 
-    // 주문 삭제 (API 사용)
+    // 주문 삭제 (localStorage 사용)
     async deleteOrder(orderId) {
         if (confirm('정말로 이 주문을 삭제하시겠습니까?')) {
             try {
                 this.showLoading(true);
-                await this.apiCall(`/orders/${orderId}`, 'DELETE');
-                await this.loadOrders(); // 서버에서 최신 데이터 다시 로드
+                
+                // localStorage에서 주문 삭제
+                this.orders = this.orders.filter(order => order.id !== orderId);
+                localStorage.setItem('trkorea_orders', JSON.stringify(this.orders));
+                
                 this.updateUI();
                 this.displayEditOrders();
-                this.showNotification('주문이 삭제되었습니다. (MOBILE_LOG.json)', 'success');
+                this.showNotification('주문이 삭제되었습니다.', 'success');
             } catch (error) {
                 this.showNotification(`삭제 실패: ${error.message}`, 'error');
             } finally {
@@ -687,6 +879,12 @@ class OrderApp {
         if (defaultManager) {
             document.getElementById('defaultManager').value = defaultManager;
         }
+        
+        // 로그인 사용자 표시
+        const loginUserElement = document.getElementById('loginUser');
+        if (loginUserElement && this.currentUser) {
+            loginUserElement.textContent = this.currentUser.name;
+        }
     }
 
     // 데이터 내보내기
@@ -708,19 +906,31 @@ class OrderApp {
         this.showNotification('데이터가 성공적으로 내보내졌습니다.', 'success');
     }
 
-    // 모든 데이터 삭제 (API는 제공하지 않음 - 보안상 이유)
+    // 모든 데이터 삭제 (localStorage 사용)
     clearAllData() {
-        this.showNotification('보안상의 이유로 서버 데이터 일괄 삭제는 지원하지 않습니다.\n개별 주문 삭제를 이용해주세요.', 'warning');
+        if (confirm('정말로 모든 주문 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+            this.orders = [];
+            localStorage.removeItem('trkorea_orders');
+            this.updateUI();
+            this.displayOrders();
+            this.showNotification('모든 주문 데이터가 삭제되었습니다.', 'success');
+        }
     }
 
-    // 서버에서 주문 로드 (API 사용)
+    // localStorage에서 주문 로드
     async loadOrders() {
         try {
-            const result = await this.apiCall('/orders', 'GET');
-            this.orders = result.orders || [];
+            const ordersData = localStorage.getItem('trkorea_orders');
+            if (ordersData) {
+                this.orders = JSON.parse(ordersData);
+                console.log(`${this.orders.length}개의 주문을 로드했습니다.`);
+            } else {
+                this.orders = [];
+                console.log('저장된 주문이 없습니다.');
+            }
         } catch (error) {
             console.error('주문 로드 실패:', error);
-            this.showNotification('서버에서 주문 목록을 불러오는데 실패했습니다.', 'error');
+            this.showNotification('저장된 주문 목록을 불러오는데 실패했습니다.', 'error');
             this.orders = [];
         }
     }
