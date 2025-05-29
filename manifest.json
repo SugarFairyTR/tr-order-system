@@ -1,0 +1,63 @@
+{
+  "name": "티알코리아 주문시스템",
+  "short_name": "TR주문",
+  "description": "티알코리아 영업사원용 모바일 주문 시스템",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#2196F3",
+  "theme_color": "#2196F3",
+  "orientation": "portrait",
+  "lang": "ko",
+  "categories": ["business", "productivity"],
+  "scope": "./",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot1.png",
+      "sizes": "320x640",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "새 주문",
+      "short_name": "주문",
+      "description": "새 주문 입력",
+      "url": "./index.html?action=order",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "주문 목록",
+      "short_name": "목록",
+      "description": "주문 목록 보기",
+      "url": "./index.html?action=list",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": []
+} 

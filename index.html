@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>티알코리아 주문시스템</title>
+    
+    <!-- PWA 메타 태그 -->
+    <meta name="theme-color" content="#2196F3">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="티알코리아 주문">
+    
+    <!-- PWA 매니페스트 -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- 아이콘 -->
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 로그인 화면 -->
+        <div id="loginScreen" class="login-screen active">
+            <div class="login-container">
+                <div class="login-header">
+                    <div class="company-logo">
+                        <i class="fas fa-building"></i>
+                        <h1>티알코리아</h1>
+                        <p>주문시스템</p>
+                    </div>
+                </div>
+                
+                <div class="login-form">
+                    <div class="form-group">
+                        <label for="loginManager">담당자 선택</label>
+                        <select id="loginManager" required>
+                            <option value="">담당자를 선택하세요</option>
+                            <option value="김정진">김정진</option>
+                            <option value="박경범">박경범</option>
+                            <option value="이선화">이선화</option>
+                            <option value="신준호">신준호</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="loginPin">PIN 번호 (4자리)</label>
+                        <input type="password" id="loginPin" maxlength="4" placeholder="PIN 번호 입력" required>
+                        <small class="pin-hint">기본 PIN: 각 담당자 이름의 첫 글자 순서 (예: 김정진 → 1234)</small>
+                    </div>
+                    
+                    <button type="button" id="loginBtn" class="btn btn-primary login-btn">
+                        <i class="fas fa-sign-in-alt"></i> 로그인
+                    </button>
+                    
+                    <div class="login-info">
+                        <div class="info-item">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>회사 내부 전용</span>
+                        </div>
+                        <div class="info-item">
+                            <i class="fas fa-clock"></i>
+                            <span>자동 로그아웃: 1시간</span>
+                        </div>
+                        <div class="info-item">
+                            <i class="fas fa-mobile-alt"></i>
+                            <span>모바일 최적화</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="login-footer">
+                    <p>© 2025 주식회사 티알코리아</p>
+                    <p class="version">v1.0.0</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 메인 앱 화면 (로그인 후 표시) -->
+        <div id="mainApp" class="main-app hidden">
+            <!-- 헤더 -->
+            <header class="app-header">
+                <div class="header-left">
+                    <h1><i class="fas fa-shopping-cart"></i> 티알코리아 주문</h1>
+                    <span id="currentUser" class="current-user"></span>
+                </div>
+                <div class="header-right">
+                    <button id="settingsBtn" class="settings-btn">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                    <button id="logoutBtn" class="logout-btn">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- 메인 컨텐츠 -->
+            <main class="main-content">
+                <!-- 주문 입력 화면 -->
+                <div id="orderForm" class="screen active">
+                    <div class="form-section">
+                        <h2><i class="fas fa-plus-circle"></i> 새 주문 입력</h2>
+                        
+                        <!-- 담당자 선택 -->
+                        <div class="form-group">
+                            <label for="manager">담당자</label>
+                            <select id="manager" required>
+                                <option value="">담당자 선택</option>
+                            </select>
+                        </div>
+
+                        <!-- 판매처 선택 -->
+                        <div class="form-group">
+                            <label for="seller">판매처</label>
+                            <select id="seller" required>
+                                <option value="">판매처 선택</option>
+                            </select>
+                        </div>
+
+                        <!-- 도착지 선택 -->
+                        <div class="form-group">
+                            <label for="destination">도착지</label>
+                            <select id="destination" required>
+                                <option value="">도착지 선택</option>
+                            </select>
+                        </div>
+
+                        <!-- 분류 선택 -->
+                        <div class="form-group">
+                            <label for="category">분류</label>
+                            <select id="category" required>
+                                <option value="">분류 선택</option>
+                            </select>
+                        </div>
+
+                        <!-- 품목 선택 -->
+                        <div class="form-group">
+                            <label for="product">품목</label>
+                            <select id="product" required>
+                                <option value="">품목 선택</option>
+                            </select>
+                        </div>
+
+                        <!-- 수량 입력 -->
+                        <div class="form-group">
+                            <label for="quantity">수량</label>
+                            <input type="number" id="quantity" min="1" required placeholder="수량 입력">
+                        </div>
+
+                        <!-- 단가 입력 -->
+                        <div class="form-group">
+                            <label for="price">단가 (원)</label>
+                            <input type="text" id="price" required placeholder="단가 입력 (천단위 콤마 자동)">
+                        </div>
+
+                        <!-- 도착일 선택 -->
+                        <div class="form-group">
+                            <label for="deliveryDate">도착일</label>
+                            <input type="date" id="deliveryDate" required>
+                        </div>
+
+                        <!-- 총액 표시 -->
+                        <div class="form-group total-section">
+                            <label>총액</label>
+                            <div class="total-amount" id="totalAmount">0원</div>
+                        </div>
+
+                        <!-- 버튼들 -->
+                        <div class="button-group">
+                            <button type="button" id="saveOrderBtn" class="btn btn-primary">
+                                <i class="fas fa-save"></i> 저장
+                            </button>
+                            <button type="button" id="resetFormBtn" class="btn btn-secondary">
+                                <i class="fas fa-undo"></i> 초기화
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 주문 목록 화면 -->
+                <div id="orderList" class="screen">
+                    <div class="list-section">
+                        <h2><i class="fas fa-list"></i> 주문 목록</h2>
+                        
+                        <!-- 필터 옵션 -->
+                        <div class="filter-section">
+                            <div class="form-group">
+                                <label for="filterManager">담당자 필터</label>
+                                <select id="filterManager">
+                                    <option value="">전체</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="filterDate">날짜 필터</label>
+                                <input type="date" id="filterDate">
+                            </div>
+                            <div class="form-group checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="showPastOrders">
+                                    <span class="checkmark"></span>
+                                    과거 주문 포함
+                                </label>
+                                <small class="filter-hint">체크하면 완료된 과거 주문도 표시됩니다</small>
+                            </div>
+                        </div>
+
+                        <!-- 주문 통계 -->
+                        <div class="order-stats" id="orderStats">
+                            <div class="stat-item">
+                                <span class="stat-number" id="totalOrders">0</span>
+                                <span class="stat-label">전체 주문</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-number" id="todayOrders">0</span>
+                                <span class="stat-label">오늘 주문</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-number" id="futureOrders">0</span>
+                                <span class="stat-label">예정 주문</span>
+                            </div>
+                        </div>
+
+                        <!-- 주문 리스트 -->
+                        <div id="orderListContainer" class="order-list-container">
+                            <!-- 동적으로 생성됨 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 주문 수정 화면 -->
+                <div id="orderEdit" class="screen">
+                    <div class="form-section">
+                        <h2><i class="fas fa-edit"></i> 주문 수정</h2>
+                        <!-- 주문 입력과 동일한 폼이지만 수정 모드 -->
+                        <div id="editFormContainer">
+                            <!-- 동적으로 생성됨 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 설정 화면 -->
+                <div id="settings" class="screen">
+                    <div class="settings-section">
+                        <h2><i class="fas fa-cog"></i> 설정</h2>
+                        
+                        <div class="form-group">
+                            <label for="defaultManager">기본 담당자</label>
+                            <select id="defaultManager">
+                                <option value="">선택 안함</option>
+                            </select>
+                        </div>
+
+                        <div class="settings-info">
+                            <h3>앱 정보</h3>
+                            <p>버전: 1.0.0</p>
+                            <p>마지막 업데이트: <span id="lastUpdate"></span></p>
+                            <p>저장된 주문: <span id="orderCount">0</span>개</p>
+                            <p>로그인 사용자: <span id="loginUser"></span></p>
+                        </div>
+
+                        <div class="button-group">
+                            <button type="button" id="exportDataBtn" class="btn btn-secondary">
+                                <i class="fas fa-download"></i> 데이터 내보내기
+                            </button>
+                            <button type="button" id="clearDataBtn" class="btn btn-danger">
+                                <i class="fas fa-trash"></i> 모든 데이터 삭제
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- 하단 네비게이션 -->
+            <nav class="bottom-nav">
+                <button class="nav-btn active" data-screen="orderForm">
+                    <i class="fas fa-plus"></i>
+                    <span>주문입력</span>
+                </button>
+                <button class="nav-btn" data-screen="orderList">
+                    <i class="fas fa-list"></i>
+                    <span>목록보기</span>
+                </button>
+                <button class="nav-btn" data-screen="orderEdit">
+                    <i class="fas fa-edit"></i>
+                    <span>주문수정</span>
+                </button>
+            </nav>
+        </div>
+    </div>
+
+    <!-- 로딩 스피너 -->
+    <div id="loadingSpinner" class="loading-spinner">
+        <div class="spinner"></div>
+        <p>처리 중...</p>
+    </div>
+
+    <!-- 알림 메시지 -->
+    <div id="notification" class="notification">
+        <span id="notificationText"></span>
+        <button id="closeNotification">&times;</button>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html> 
