@@ -61,8 +61,8 @@ class OrderApp {
             console.log('사용자 설정을 성공적으로 로드했습니다.');
         } catch (error) {
             console.error('사용자 설정 로딩 실패:', error);
-            this.showNotification('사용자 설정을 불러올 수 없습니다.', 'error');
-            // 기본 설정 사용
+            // 첫 실행시에는 메시지 표시하지 않음
+            console.log('기본 사용자 설정을 사용합니다.');
             this.userConfig = this.getDefaultUserConfig();
         }
     }
@@ -245,10 +245,10 @@ class OrderApp {
             }
             
             this.database = await response.json();
-            this.showNotification('데이터베이스를 성공적으로 로드했습니다.', 'success');
+            console.log('데이터베이스를 성공적으로 로드했습니다.');
         } catch (error) {
             console.error('Database loading error:', error);
-            this.showNotification('데이터베이스 로딩에 실패했습니다. 기본 데이터를 사용합니다.', 'error');
+            console.log('기본 데이터베이스를 사용합니다.');
             this.database = this.getDefaultDatabase();
         } finally {
             this.showLoading(false);
@@ -926,11 +926,14 @@ class OrderApp {
                 console.log(`${this.orders.length}개의 주문을 로드했습니다.`);
             } else {
                 this.orders = [];
-                console.log('저장된 주문이 없습니다.');
+                console.log('첫 실행: 주문 데이터를 초기화합니다.');
             }
         } catch (error) {
             console.error('주문 로드 실패:', error);
-            this.showNotification('저장된 주문 목록을 불러오는데 실패했습니다.', 'error');
+            // JSON 파싱 오류 등 실제 오류 상황에서만 메시지 표시
+            if (localStorage.getItem('trkorea_orders')) {
+                this.showNotification('저장된 주문 데이터가 손상되었습니다. 초기화합니다.', 'warning');
+            }
             this.orders = [];
         }
     }
