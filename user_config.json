@@ -1,41 +1,41 @@
 {
   "users": {
     "김정진": {
-      "pin": "1234",
+      "pin": "9736",
       "name": "김정진",
-      "role": "영업팀장",
-      "department": "영업부",
-      "email": "kim@trkorea.co.kr",
-      "phone": "010-1234-5678",
+      "role": "대표이사",
+      "department": "주식회사 티알코리아",
+      "email": "kim@trkorea.kr",
+      "phone": "010-2066-2455",
       "created_at": "2025-05-29",
       "last_login": null
     },
     "박경범": {
       "pin": "5678",
       "name": "박경범", 
-      "role": "영업사원",
-      "department": "영업부",
-      "email": "park@trkorea.co.kr",
+      "role": "상무",
+      "department": "구매팀",
+      "email": "parkkp00@gmail.com",
       "phone": "010-2345-6789",
       "created_at": "2025-05-29",
       "last_login": null
     },
     "이선화": {
-      "pin": "9012",
+      "pin": "0608",
       "name": "이선화",
-      "role": "영업사원", 
-      "department": "영업부",
-      "email": "lee@trkorea.co.kr",
-      "phone": "010-3456-7890",
+      "role": "이사", 
+      "department": "영업팀",
+      "email": "tn@tenafly.co.kr",
+      "phone": "010-5393-5993",
       "created_at": "2025-05-29",
       "last_login": null
     },
     "신준호": {
-      "pin": "3456",
+      "pin": "3444",
       "name": "신준호",
-      "role": "영업사원",
-      "department": "영업부", 
-      "email": "shin@trkorea.co.kr",
+      "role": "과장장",
+      "department": "영업팀", 
+      "email": "jh@tenafly.co.kr",
       "phone": "010-4567-8901",
       "created_at": "2025-05-29",
       "last_login": null

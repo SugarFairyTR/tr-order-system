@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>티알코리아 주문시스템</title>
+    <title>티알코리아 주문시스템 V1.0</title>
     
     <!-- PWA 메타 태그 -->
     <meta name="theme-color" content="#2196F3">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="티알코리아 주문">
+    <meta name="apple-mobile-web-app-title" content="티알코리아 주문시스템 V1.0">
     
     <!-- PWA 매니페스트 -->
     <link rel="manifest" href="manifest.json">
@@ -52,7 +52,7 @@
                     <div class="form-group">
                         <label for="loginPin">PIN 번호 (4자리)</label>
                         <input type="password" id="loginPin" maxlength="4" placeholder="PIN 번호 입력" required>
-                        <small class="pin-hint">담당자별 PIN: 김정진(1234), 박경범(5678), 이선화(9012), 신준호(3456)</small>
+                        <small class="pin-hint">담당자별 PIN 예시: 김정진(1234), 박경범(5678), 이선화(9012), 신준호(3456)</small>
                     </div>
                     
                     <button type="button" id="loginBtn" class="btn btn-primary login-btn">
@@ -72,7 +72,7 @@
             <!-- 헤더 -->
             <header class="app-header">
                 <div class="header-left">
-                    <h1><i class="fas fa-shopping-cart"></i> 티알코리아 주문</h1>
+                    <h1><i class="fas fa-shopping-cart"></i> 티알코리아 주문시스템 V1.0</h1>
                     <span id="currentUser" class="current-user"></span>
                 </div>
                 <div class="header-right">
@@ -90,7 +90,7 @@
                 <!-- 주문 입력 화면 -->
                 <div id="orderForm" class="screen active">
                     <div class="form-section">
-                        <h2><i class="fas fa-plus-circle"></i> 새 주문 입력</h2>
+                        <h2><i class="fas fa-plus-circle"></i> 신규 주문 입력</h2>
                         
                         <!-- 담당자 선택 -->
                         <div class="form-group">
@@ -134,13 +134,13 @@
 
                         <!-- 수량 입력 -->
                         <div class="form-group">
-                            <label for="quantity">수량</label>
+                            <label for="quantity">수량 (KG)</label>
                             <input type="number" id="quantity" min="1" required placeholder="수량 입력">
                         </div>
 
                         <!-- 단가 입력 -->
                         <div class="form-group">
-                            <label for="price">단가 (원)</label>
+                            <label for="price">단가 (공급가액)</label>
                             <input type="text" id="price" required placeholder="단가 입력 (천단위 콤마 자동)">
                         </div>
 
@@ -150,9 +150,30 @@
                             <input type="date" id="deliveryDate" required>
                         </div>
 
+                        <div class="form-group">
+                            <label for="deliveryTime">도착시간</label>
+                            <select id="deliveryTime" required>
+                                <option value="">시간 선택</option>
+                                <option value="07:00">07:00 AM</option>
+                                <option value="08:00">08:00 AM</option>
+                                <option value="09:00">09:00 AM</option>
+                                <option value="10:00">10:00 AM</option>
+                                <option value="11:00">11:00 AM</option>
+                                <option value="12:00">12:00 PM</option>
+                                <option value="13:00">01:00 PM</option>
+                                <option value="14:00">02:00 PM</option>
+                                <option value="15:00">03:00 PM</option>
+                                <option value="16:00">04:00 PM</option>
+                                <option value="17:00">05:00 PM</option>
+                                <option value="18:00">06:00 PM</option>
+                                <option value="19:00">07:00 PM</option>
+                                <option value="20:00">08:00 PM</option>
+                            </select>
+                        </div>
+
                         <!-- 총액 표시 -->
                         <div class="form-group total-section">
-                            <label>총액</label>
+                            <label>총액 (공급가액)</label>
                             <div class="total-amount" id="totalAmount">0원</div>
                         </div>
 
@@ -170,51 +191,70 @@
 
                 <!-- 주문 목록 화면 -->
                 <div id="orderList" class="screen">
-                    <div class="list-section">
-                        <h2><i class="fas fa-list"></i> 주문 목록</h2>
+                    <div class="page-header">
+                        <h2>📋 주문 목록</h2>
+                        <div class="header-actions">
+                            <button type="button" class="btn btn-secondary" onclick="app.showStatistics()">
+                                <i class="fas fa-chart-bar"></i> 통계
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 검색 및 필터 -->
+                    <div class="filter-section">
+                        <div class="form-group">
+                            <label for="searchBox">🔍 검색</label>
+                            <input type="text" id="searchBox" placeholder="주문번호, 담당자, 판매처, 품목 등 검색..." 
+                                   style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;">
+                        </div>
                         
-                        <!-- 필터 옵션 -->
-                        <div class="filter-section">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
                             <div class="form-group">
                                 <label for="filterManager">담당자 필터</label>
                                 <select id="filterManager">
                                     <option value="">전체</option>
                                 </select>
                             </div>
+
                             <div class="form-group">
                                 <label for="filterDate">날짜 필터</label>
                                 <input type="date" id="filterDate">
                             </div>
-                            <div class="form-group checkbox-group">
-                                <label class="checkbox-label">
-                                    <input type="checkbox" id="showPastOrders">
-                                    <span class="checkmark"></span>
-                                    과거 주문 포함
+
+                            <div class="form-group" style="display: flex; align-items: center; padding-top: 1.5rem;">
+                                <label>
+                                    <input type="checkbox" id="showPastOrders" style="margin-right: 0.5rem;">
+                                    과거 주문 표시
                                 </label>
-                                <small class="filter-hint">체크하면 완료된 과거 주문도 표시됩니다</small>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- 주문 통계 -->
-                        <div class="order-stats" id="orderStats">
-                            <div class="stat-item">
-                                <span class="stat-number" id="totalOrders">0</span>
-                                <span class="stat-label">전체 주문</span>
+                    <!-- 주문 통계 요약 -->
+                    <div class="stats-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 2rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #2196f3;">
+                                <span id="totalOrders">0</span>
                             </div>
-                            <div class="stat-item">
-                                <span class="stat-number" id="todayOrders">0</span>
-                                <span class="stat-label">오늘 주문</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-number" id="futureOrders">0</span>
-                                <span class="stat-label">예정 주문</span>
-                            </div>
+                            <div style="font-size: 0.9rem; color: #666;">전체 주문</div>
                         </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #4caf50;">
+                                <span id="todayOrders">0</span>
+                            </div>
+                            <div style="font-size: 0.9rem; color: #666;">오늘 주문</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #ff9800;">
+                                <span id="futureOrders">0</span>
+                            </div>
+                            <div style="font-size: 0.9rem; color: #666;">미래 주문</div>
+                        </div>
+                    </div>
 
-                        <!-- 주문 리스트 -->
-                        <div id="orderListContainer" class="order-list-container">
-                            <!-- 동적으로 생성됨 -->
-                        </div>
+                    <!-- 주문 목록 컨테이너 -->
+                    <div id="orderListContainer">
+                        <!-- 주문 목록이 여기에 동적으로 생성됩니다 -->
                     </div>
                 </div>
 
@@ -250,6 +290,12 @@
                         </div>
 
                         <div class="button-group">
+                            <button type="button" id="saveFileBtn" class="btn btn-primary">
+                                <i class="fas fa-file-download"></i> order_list.json 저장
+                            </button>
+                            <button type="button" id="loadFileBtn" class="btn btn-primary">
+                                <i class="fas fa-file-upload"></i> order_list.json 불러오기
+                            </button>
                             <button type="button" id="exportDataBtn" class="btn btn-secondary">
                                 <i class="fas fa-download"></i> 데이터 내보내기
                             </button>

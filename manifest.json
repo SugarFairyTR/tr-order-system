@@ -1,7 +1,7 @@
 {
-  "name": "티알코리아 주문시스템",
-  "short_name": "TR주문",
-  "description": "티알코리아 영업사원용 모바일 주문 시스템",
+  "name": "티알코리아 주문시스템 V1.0",
+  "short_name": "TR ORDER",
+  "description": "티알코리아 영업팀 주문 시스템",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#2196F3",
@@ -34,9 +34,9 @@
   ],
   "shortcuts": [
     {
-      "name": "새 주문",
+      "name": "신규규 주문",
       "short_name": "주문",
-      "description": "새 주문 입력",
+      "description": "신규 주문 입력",
       "url": "./index.html?action=order",
       "icons": [
         {

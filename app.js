@@ -12,7 +12,72 @@ class OrderApp {
         this.sessionTimeout = null;
         this.isLoggedIn = false;
         
+        // 성능 최적화
+        this.debounceTimers = new Map();
+        this.eventListeners = new Map();
+        
+        // 오프라인 상태 관리
+        this.isOnline = navigator.onLine;
+        this.pendingSync = [];
+        
+        // 데이터 백업 관리
+        this.lastBackupTime = localStorage.getItem('lastBackupTime');
+        this.autoBackupInterval = null;
+        
         this.init();
+        this.setupOfflineHandling();
+        this.setupAutoBackup();
+    }
+
+    // 디바운싱 헬퍼 함수
+    debounce(key, func, delay = 300) {
+        if (this.debounceTimers.has(key)) {
+            clearTimeout(this.debounceTimers.get(key));
+        }
+        
+        const timer = setTimeout(() => {
+            func();
+            this.debounceTimers.delete(key);
+        }, delay);
+        
+        this.debounceTimers.set(key, timer);
+    }
+
+    // 이벤트 리스너 관리
+    addEventListenerWithTracking(element, event, handler, options = false) {
+        const key = `${element.id || element.tagName}-${event}`;
+        
+        // 기존 리스너 제거
+        if (this.eventListeners.has(key)) {
+            const { elem, evt, hdlr } = this.eventListeners.get(key);
+            elem.removeEventListener(evt, hdlr);
+        }
+        
+        element.addEventListener(event, handler, options);
+        this.eventListeners.set(key, { elem: element, evt: event, hdlr: handler });
+    }
+
+    // 메모리 정리
+    cleanup() {
+        // 타이머 정리
+        this.debounceTimers.forEach(timer => clearTimeout(timer));
+        this.debounceTimers.clear();
+        
+        // 이벤트 리스너 정리
+        this.eventListeners.forEach(({ elem, evt, hdlr }) => {
+            elem.removeEventListener(evt, hdlr);
+        });
+        this.eventListeners.clear();
+        
+        // 세션 타임아웃 정리
+        if (this.sessionTimeout) {
+            clearTimeout(this.sessionTimeout);
+        }
+
+        // 자동 백업 인터벌 정리
+        if (this.autoBackupInterval) {
+            clearInterval(this.autoBackupInterval);
+        }
     }
 
     async init() {
@@ -37,7 +102,15 @@ class OrderApp {
         await this.loadDatabase();
         this.setupEventListeners();
         this.populateSelects();
-        await this.loadOrders(); // localStorage에서 주문 로드
+        await this.loadOrders(); // localStorage와 order_list.json에서 주문 로드
+        
+        // 데이터 무결성 검사 및 복구
+        const integrityCheck = this.validateDataIntegrity();
+        if (!integrityCheck.valid) {
+            console.warn('데이터 무결성 문제 발견. 자동 복구를 시도합니다.');
+            this.repairData();
+        }
+        
         this.updateUI();
         
         // 오늘 날짜를 기본값으로 설정
@@ -53,31 +126,52 @@ class OrderApp {
     // 사용자 설정 로드
     async loadUserConfig() {
         try {
+            console.log('사용자 설정 로드 시도: ./user_config.json');
             const response = await fetch('./user_config.json');
+            
             if (!response.ok) {
-                throw new Error('사용자 설정 파일을 찾을 수 없습니다.');
+                throw new Error(`HTTP ${response.status}: 사용자 설정 파일을 찾을 수 없습니다.`);
             }
-            this.userConfig = await response.json();
-            console.log('사용자 설정을 성공적으로 로드했습니다.');
+            
+            const data = await response.json();
+            
+            if (this.validateUserConfig(data)) {
+                this.userConfig = data;
+                console.log('사용자 설정 로드 성공:', {
+                    사용자수: Object.keys(data.users || {}).length,
+                    회사명: data.settings?.company_name || 'N/A',
+                    버전: data.settings?.system_version || 'N/A'
+                });
+            } else {
+                throw new Error('사용자 설정 파일 형식이 올바르지 않습니다.');
+            }
+            
         } catch (error) {
             console.error('사용자 설정 로딩 실패:', error);
-            // 첫 실행시에는 메시지 표시하지 않음
-            console.log('기본 사용자 설정을 사용합니다.');
+            this.showNotification('사용자 설정 로딩에 실패했습니다. 기본 설정을 사용합니다.', 'warning');
             this.userConfig = this.getDefaultUserConfig();
         }
     }
 
+    // 사용자 설정 유효성 검사
+    validateUserConfig(config) {
+        return config && 
+               typeof config.users === 'object' &&
+               typeof config.settings === 'object' &&
+               config.settings.company_name &&
+               config.settings.system_version;
+    }
+
     // 기본 사용자 설정
     getDefaultUserConfig() {
+        console.warn('user_config.json을 로드할 수 없어 기본 설정을 사용합니다.');
         return {
-            users: {
-                "김정진": { pin: "1234", name: "김정진", role: "영업팀장" },
-                "박경범": { pin: "5678", name: "박경범", role: "영업사원" },
-                "이선화": { pin: "9012", name: "이선화", role: "영업사원" },
-                "신준호": { pin: "3456", name: "신준호", role: "영업사원" }
-            },
+            users: {},
             settings: {
-                max_login_attempts: 5
+                max_login_attempts: 5,
+                pin_length: 4,
+                company_name: "주식회사 티알코리아",
+                system_version: "1.0.0"
             }
         };
     }
@@ -231,47 +325,91 @@ class OrderApp {
         try {
             this.showLoading(true);
             
-            // database_optimized.json 파일 로딩 시도
-            let response;
-            try {
-                response = await fetch('./database_optimized.json');
-            } catch (error) {
-                // 로컬 파일이 없으면 fallback 데이터 사용
-                response = await fetch('./database_converted.json');
+            // 우선순위: database_optimized.json -> database_converted.json
+            const dbFiles = ['./database_optimized.json', './database_converted.json'];
+            let loadedDb = null;
+            
+            for (const dbFile of dbFiles) {
+                try {
+                    console.log(`데이터베이스 로드 시도: ${dbFile}`);
+                    const response = await fetch(dbFile);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // database_converted.json 형식인 경우 변환
+                        if (Array.isArray(data) && data.length > 0) {
+                            loadedDb = this.convertLegacyDatabase(data[0]);
+                        } else {
+                            loadedDb = data;
+                        }
+                        
+                        console.log(`데이터베이스 로드 성공: ${dbFile}`);
+                        break;
+                    }
+                } catch (error) {
+                    console.warn(`${dbFile} 로드 실패:`, error);
+                    continue;
+                }
             }
             
-            if (!response.ok) {
-                throw new Error('데이터베이스 파일을 찾을 수 없습니다.');
+            if (loadedDb && this.validateDatabase(loadedDb)) {
+                this.database = loadedDb;
+                console.log('데이터베이스 검증 완료:', {
+                    담당자: this.database.categories?.담당자?.length || 0,
+                    분류: this.database.categories?.분류?.length || 0,
+                    판매처: Object.keys(this.database.sellers_by_manager || {}).length,
+                    도착지: Object.keys(this.database.destinations_by_seller || {}).length
+                });
+            } else {
+                throw new Error('유효한 데이터베이스를 찾을 수 없습니다.');
             }
             
-            this.database = await response.json();
-            console.log('데이터베이스를 성공적으로 로드했습니다.');
         } catch (error) {
-            console.error('Database loading error:', error);
-            console.log('기본 데이터베이스를 사용합니다.');
+            console.error('데이터베이스 로딩 오류:', error);
+            this.showNotification('데이터베이스 로딩에 실패했습니다. 기본 데이터를 사용합니다.', 'warning');
             this.database = this.getDefaultDatabase();
         } finally {
             this.showLoading(false);
         }
     }
 
-    // 기본 데이터베이스 (fallback)
-    getDefaultDatabase() {
+    // 레거시 데이터베이스 형식 변환
+    convertLegacyDatabase(legacyData) {
         return {
             categories: {
-                담당자: ["김정진", "박경범", "이선화", "신준호"],
-                분류: ["설탕", "식품첨가물"]
+                담당자: legacyData.담당자 || [],
+                분류: legacyData.분류 || []
             },
             items: {
-                설탕: ["KBS_25KG", "MITRPHOL_25KG", "MSM_25KG"],
-                식품첨가물: ["MSG_25KG", "DEXTROSE_20KG", "ERYTHRITOL_25KG"]
+                설탕: legacyData.설탕 || [],
+                식품첨가물: legacyData.식품첨가물 || []
             },
-            sellers_by_manager: {
-                김정진: ["(주)동일에프앤디", "(주)정진식품"],
-                박경범: ["(주) 마켓랩", "(주)다감"],
-                이선화: ["(주) 빅솔반월공장", "(주) 이디야"],
-                신준호: ["(주) 산호인터내셔널", "(주) 아름터"]
+            sellers_by_manager: legacyData.담당자별_거래처 || {},
+            destinations_by_seller: legacyData.도착지_정보 || {}
+        };
+    }
+
+    // 데이터베이스 유효성 검사
+    validateDatabase(db) {
+        return db && 
+               db.categories && 
+               Array.isArray(db.categories.담당자) && 
+               Array.isArray(db.categories.분류) &&
+               typeof db.sellers_by_manager === 'object' &&
+               typeof db.destinations_by_seller === 'object';
+    }
+
+    // 기본 데이터베이스 (fallback)
+    getDefaultDatabase() {
+        console.warn('데이터베이스 파일을 로드할 수 없어 기본 데이터를 사용합니다.');
+        return {
+            categories: {
+                담당자: [],
+                분류: []
             },
+            items: {},
+            sellers_by_manager: {},
             destinations_by_seller: {}
         };
     }
@@ -280,50 +418,132 @@ class OrderApp {
     setupEventListeners() {
         // 네비게이션
         document.querySelectorAll('.nav-btn').forEach(btn => {
-            btn.addEventListener('click', () => this.switchScreen(btn.dataset.screen));
+            this.addEventListenerWithTracking(btn, 'click', () => this.switchScreen(btn.dataset.screen));
         });
 
         // 설정 버튼
-        document.getElementById('settingsBtn').addEventListener('click', () => {
-            this.switchScreen('settings');
-        });
+        const settingsBtn = document.getElementById('settingsBtn');
+        if (settingsBtn) {
+            this.addEventListenerWithTracking(settingsBtn, 'click', () => this.switchScreen('settings'));
+        }
 
-        // 주문 입력 폼
-        document.getElementById('manager').addEventListener('change', () => this.updateSellers());
-        document.getElementById('seller').addEventListener('change', () => this.updateDestinations());
-        document.getElementById('category').addEventListener('change', () => this.updateProducts());
-        document.getElementById('quantity').addEventListener('input', () => this.calculateTotal());
-        document.getElementById('price').addEventListener('input', (e) => {
-            this.formatPrice(e);
-            this.calculateTotal();
-        });
+        // 주문 입력 폼 - 디바운싱 적용
+        const managerSelect = document.getElementById('manager');
+        if (managerSelect) {
+            this.addEventListenerWithTracking(managerSelect, 'change', () => {
+                this.debounce('updateSellers', () => this.updateSellers(), 100);
+            });
+        }
+
+        const sellerSelect = document.getElementById('seller');
+        if (sellerSelect) {
+            this.addEventListenerWithTracking(sellerSelect, 'change', () => {
+                this.debounce('updateDestinations', () => this.updateDestinations(), 100);
+            });
+        }
+
+        const categorySelect = document.getElementById('category');
+        if (categorySelect) {
+            this.addEventListenerWithTracking(categorySelect, 'change', () => {
+                this.debounce('updateProducts', () => this.updateProducts(), 100);
+            });
+        }
+
+        const quantityInput = document.getElementById('quantity');
+        if (quantityInput) {
+            this.addEventListenerWithTracking(quantityInput, 'input', () => {
+                this.debounce('calculateTotal', () => this.calculateTotal(), 200);
+            });
+        }
+
+        const priceInput = document.getElementById('price');
+        if (priceInput) {
+            this.addEventListenerWithTracking(priceInput, 'input', (e) => {
+                this.formatPrice(e);
+                this.debounce('calculateTotal', () => this.calculateTotal(), 200);
+            });
+        }
 
         // 버튼 이벤트
-        document.getElementById('saveOrderBtn').addEventListener('click', () => this.saveOrder());
-        document.getElementById('resetFormBtn').addEventListener('click', () => this.resetForm());
-        document.getElementById('exportDataBtn').addEventListener('click', () => this.exportData());
-        document.getElementById('clearDataBtn').addEventListener('click', () => this.clearAllData());
+        const saveOrderBtn = document.getElementById('saveOrderBtn');
+        if (saveOrderBtn) {
+            this.addEventListenerWithTracking(saveOrderBtn, 'click', () => this.saveOrder());
+        }
 
-        // 필터 이벤트
-        document.getElementById('filterManager').addEventListener('change', () => this.filterOrders());
-        document.getElementById('filterDate').addEventListener('change', () => this.filterOrders());
+        const resetFormBtn = document.getElementById('resetFormBtn');
+        if (resetFormBtn) {
+            this.addEventListenerWithTracking(resetFormBtn, 'click', () => this.resetForm());
+        }
+
+        const exportDataBtn = document.getElementById('exportDataBtn');
+        if (exportDataBtn) {
+            this.addEventListenerWithTracking(exportDataBtn, 'click', () => this.exportData());
+        }
+
+        const clearDataBtn = document.getElementById('clearDataBtn');
+        if (clearDataBtn) {
+            this.addEventListenerWithTracking(clearDataBtn, 'click', () => this.clearAllData());
+        }
+
+        // 파일 저장/로드 버튼 이벤트
+        const saveFileBtn = document.getElementById('saveFileBtn');
+        if (saveFileBtn) {
+            this.addEventListenerWithTracking(saveFileBtn, 'click', () => this.saveToFile());
+        }
         
-        // 과거 주문 표시 체크박스 (나중에 추가되므로 이벤트 위임 사용)
+        const loadFileBtn = document.getElementById('loadFileBtn');
+        if (loadFileBtn) {
+            this.addEventListenerWithTracking(loadFileBtn, 'click', () => this.loadOrdersFromFile());
+        }
+
+        // 필터 이벤트 - 디바운싱 적용
+        const filterManager = document.getElementById('filterManager');
+        if (filterManager) {
+            this.addEventListenerWithTracking(filterManager, 'change', () => {
+                this.debounce('filterOrders', () => this.filterOrders(), 150);
+            });
+        }
+
+        const filterDate = document.getElementById('filterDate');
+        if (filterDate) {
+            this.addEventListenerWithTracking(filterDate, 'change', () => {
+                this.debounce('filterOrders', () => this.filterOrders(), 150);
+            });
+        }
+        
+        // 과거 주문 표시 체크박스 (이벤트 위임 사용)
         document.addEventListener('change', (e) => {
             if (e.target.id === 'showPastOrders') {
-                this.filterOrders();
+                this.debounce('filterOrders', () => this.filterOrders(), 150);
             }
         });
 
         // 알림 닫기
-        document.getElementById('closeNotification').addEventListener('click', () => {
-            document.getElementById('notification').classList.remove('show');
-        });
+        const closeNotification = document.getElementById('closeNotification');
+        if (closeNotification) {
+            this.addEventListenerWithTracking(closeNotification, 'click', () => {
+                document.getElementById('notification').classList.remove('show');
+            });
+        }
 
         // 설정
-        document.getElementById('defaultManager').addEventListener('change', (e) => {
-            localStorage.setItem('defaultManager', e.target.value);
-        });
+        const defaultManager = document.getElementById('defaultManager');
+        if (defaultManager) {
+            this.addEventListenerWithTracking(defaultManager, 'change', (e) => {
+                localStorage.setItem('defaultManager', e.target.value);
+            });
+        }
+
+        // 검색 기능
+        const searchBox = document.getElementById('searchBox');
+        if (searchBox) {
+            this.addEventListenerWithTracking(searchBox, 'input', (e) => {
+                this.debounce('searchOrders', () => this.performSearch(e.target.value), 300);
+            });
+        }
+
+        // 페이지 언로드 시 정리
+        window.addEventListener('beforeunload', () => this.cleanup());
     }
 
     // 화면 전환
@@ -360,40 +580,67 @@ class OrderApp {
     // 셀렉트 박스 초기화
     populateSelects() {
         // 담당자 목록
-        const managerSelects = ['manager', 'filterManager', 'defaultManager'];
+        const managerSelects = ['manager', 'filterManager', 'defaultManager', 'loginManager'];
         managerSelects.forEach(selectId => {
             const select = document.getElementById(selectId);
-            if (select && this.database.categories.담당자) {
-                select.innerHTML = selectId === 'filterManager' || selectId === 'defaultManager' 
-                    ? '<option value="">전체</option>' 
-                    : '<option value="">담당자 선택</option>';
-                    
-                this.database.categories.담당자.forEach(manager => {
-                    const option = document.createElement('option');
-                    option.value = manager;
-                    option.textContent = manager;
-                    select.appendChild(option);
-                });
+            if (select) {
+                const isFilter = selectId === 'filterManager' || selectId === 'defaultManager';
+                const isLogin = selectId === 'loginManager';
+                
+                if (isLogin) {
+                    // 로그인 화면용
+                    select.innerHTML = '<option value="">담당자 선택</option>';
+                    if (this.userConfig && this.userConfig.users) {
+                        Object.keys(this.userConfig.users).forEach(userName => {
+                            const option = document.createElement('option');
+                            option.value = userName;
+                            option.textContent = userName;
+                            select.appendChild(option);
+                        });
+                    }
+                } else {
+                    // 일반 화면용
+                    select.innerHTML = isFilter 
+                        ? '<option value="">전체</option>' 
+                        : '<option value="">담당자 선택</option>';
+                        
+                    if (this.database && this.database.categories && this.database.categories.담당자) {
+                        this.database.categories.담당자.forEach(manager => {
+                            const option = document.createElement('option');
+                            option.value = manager;
+                            option.textContent = manager;
+                            select.appendChild(option);
+                        });
+                    }
+                }
             }
         });
 
         // 분류 목록
         const categorySelect = document.getElementById('category');
-        if (categorySelect && this.database.categories.분류) {
-            this.database.categories.분류.forEach(category => {
-                const option = document.createElement('option');
-                option.value = category;
-                option.textContent = category;
-                categorySelect.appendChild(option);
-            });
+        if (categorySelect) {
+            categorySelect.innerHTML = '<option value="">분류 선택</option>';
+            if (this.database && this.database.categories && this.database.categories.분류) {
+                this.database.categories.분류.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categorySelect.appendChild(option);
+                });
+            }
         }
 
         // 기본 담당자 설정 로딩
         const defaultManager = localStorage.getItem('defaultManager');
         if (defaultManager) {
-            document.getElementById('defaultManager').value = defaultManager;
-            document.getElementById('manager').value = defaultManager;
-            this.updateSellers();
+            const defaultManagerSelect = document.getElementById('defaultManager');
+            const managerSelect = document.getElementById('manager');
+            
+            if (defaultManagerSelect) defaultManagerSelect.value = defaultManager;
+            if (managerSelect) {
+                managerSelect.value = defaultManager;
+                this.updateSellers();
+            }
         }
     }
 
@@ -402,9 +649,11 @@ class OrderApp {
         const manager = document.getElementById('manager').value;
         const sellerSelect = document.getElementById('seller');
         
+        if (!sellerSelect) return;
+        
         sellerSelect.innerHTML = '<option value="">판매처 선택</option>';
         
-        if (manager && this.database.sellers_by_manager && this.database.sellers_by_manager[manager]) {
+        if (manager && this.database && this.database.sellers_by_manager && this.database.sellers_by_manager[manager]) {
             this.database.sellers_by_manager[manager].forEach(seller => {
                 const option = document.createElement('option');
                 option.value = seller;
@@ -414,7 +663,10 @@ class OrderApp {
         }
         
         // 도착지 초기화
-        document.getElementById('destination').innerHTML = '<option value="">도착지 선택</option>';
+        const destinationSelect = document.getElementById('destination');
+        if (destinationSelect) {
+            destinationSelect.innerHTML = '<option value="">도착지 선택</option>';
+        }
     }
 
     // 도착지 업데이트
@@ -422,9 +674,11 @@ class OrderApp {
         const seller = document.getElementById('seller').value;
         const destinationSelect = document.getElementById('destination');
         
+        if (!destinationSelect) return;
+        
         destinationSelect.innerHTML = '<option value="">도착지 선택</option>';
         
-        if (seller && this.database.destinations_by_seller && this.database.destinations_by_seller[seller]) {
+        if (seller && this.database && this.database.destinations_by_seller && this.database.destinations_by_seller[seller]) {
             this.database.destinations_by_seller[seller].forEach(destination => {
                 const option = document.createElement('option');
                 option.value = destination;
@@ -447,9 +701,11 @@ class OrderApp {
         const category = document.getElementById('category').value;
         const productSelect = document.getElementById('product');
         
+        if (!productSelect) return;
+        
         productSelect.innerHTML = '<option value="">품목 선택</option>';
         
-        if (category && this.database.items && this.database.items[category]) {
+        if (category && this.database && this.database.items && this.database.items[category]) {
             this.database.items[category].forEach(product => {
                 const option = document.createElement('option');
                 option.value = product;
@@ -478,7 +734,7 @@ class OrderApp {
         document.getElementById('totalAmount').textContent = total.toLocaleString() + '원';
     }
 
-    // 주문 저장 (localStorage 사용)
+    // 주문 저장 (localStorage 우선)
     async saveOrder() {
         const formData = this.getFormData();
         
@@ -488,40 +744,96 @@ class OrderApp {
 
         try {
             this.showLoading(true);
-
-            // 고유 ID 생성
-            if (!formData.id) {
-                formData.id = 'order_' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 9);
-            }
-            formData.createdAt = new Date().toISOString();
+            
+            const order = {
+                id: this.currentEditId || this.generateOrderId(),
+                ...formData,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
 
             if (this.currentEditId) {
-                // 주문 수정
-                const orderIndex = this.orders.findIndex(order => order.id === this.currentEditId);
-                if (orderIndex !== -1) {
-                    formData.id = this.currentEditId;
-                    formData.updatedAt = new Date().toISOString();
-                    this.orders[orderIndex] = formData;
+                // 수정
+                const index = this.orders.findIndex(o => o.id === this.currentEditId);
+                if (index !== -1) {
+                    this.orders[index] = { ...this.orders[index], ...order };
                 }
-                this.showNotification('주문이 성공적으로 수정되었습니다.', 'success');
-                this.currentEditId = null;
             } else {
-                // 신규 주문 추가
-                this.orders.push(formData);
-                this.showNotification('주문이 성공적으로 저장되었습니다.', 'success');
+                // 새 주문 추가
+                this.orders.push(order);
             }
 
-            // localStorage에 저장
+            // localStorage에 즉시 저장 (항상 실행)
             localStorage.setItem('trkorea_orders', JSON.stringify(this.orders));
             
-            this.resetForm();
             this.updateUI();
-
+            this.resetForm();
+            this.switchScreen('orderList');
+            
+            // 성공 메시지와 함께 파일 저장 옵션 제공
+            const action = this.currentEditId ? '수정' : '저장';
+            this.showNotification(`주문이 성공적으로 ${action}되었습니다!`, 'success');
+            
+            // currentEditId 리셋
+            this.currentEditId = null;
+            
+            // 선택적 파일 저장 (사용자가 원할 때만)
+            this.showFileSaveOption();
+            
         } catch (error) {
-            this.showNotification(`저장 실패: ${error.message}`, 'error');
+            console.error('주문 저장 오류:', error);
+            const action = this.currentEditId ? '수정' : '저장';
+            this.showNotification(`주문 ${action} 실패: ${error.message}`, 'error');
         } finally {
             this.showLoading(false);
         }
+    }
+
+    // 선택적 파일 저장 옵션 표시
+    showFileSaveOption() {
+        const notification = document.createElement('div');
+        notification.className = 'file-save-notification';
+        notification.innerHTML = `
+            <div style="background: #e8f5e8; border: 1px solid #4caf50; border-radius: 8px; padding: 1rem; margin: 1rem; position: fixed; top: 20px; right: 20px; z-index: 1000; max-width: 300px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                <div style="display: flex; align-items: center; margin-bottom: 0.8rem;">
+                    <i class="fas fa-check-circle" style="color: #4caf50; margin-right: 0.5rem;"></i>
+                    <strong>저장 완료!</strong>
+                </div>
+                <p style="margin: 0 0 1rem 0; font-size: 0.9rem; color: #666;">
+                    데이터가 앱에 저장되었습니다.<br>
+                    파일로도 백업하시겠습니까?
+                </p>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="saveFileBtn" 
+                            style="flex: 1; padding: 0.5rem; background: #2196f3; color: white; border: none; border-radius: 4px; font-size: 0.9rem;">
+                        💾 파일 저장
+                    </button>
+                    <button id="skipFileBtn" 
+                            style="flex: 1; padding: 0.5rem; background: #ddd; color: #666; border: none; border-radius: 4px; font-size: 0.9rem;">
+                        나중에
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // 이벤트 리스너 추가
+        notification.querySelector('#saveFileBtn').addEventListener('click', () => {
+            this.saveToFile();
+            notification.remove();
+        });
+        
+        notification.querySelector('#skipFileBtn').addEventListener('click', () => {
+            notification.remove();
+        });
+        
+        // 10초 후 자동 제거
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.remove();
+            }
+        }, 10000);
     }
 
     // 폼 데이터 가져오기
@@ -535,6 +847,7 @@ class OrderApp {
             quantity: parseInt(document.getElementById('quantity').value),
             price: parseInt(document.getElementById('price').value.replace(/[^\d]/g, '')),
             deliveryDate: document.getElementById('deliveryDate').value,
+            deliveryTime: document.getElementById('deliveryTime').value,
             total: parseInt(document.getElementById('quantity').value || 0) * 
                    parseInt(document.getElementById('price').value.replace(/[^\d]/g, '') || 0)
         };
@@ -542,7 +855,7 @@ class OrderApp {
 
     // 폼 유효성 검사
     validateForm(data) {
-        const required = ['manager', 'seller', 'destination', 'category', 'product', 'quantity', 'price', 'deliveryDate'];
+        const required = ['manager', 'seller', 'destination', 'category', 'product', 'quantity', 'price', 'deliveryDate', 'deliveryTime'];
         
         for (let field of required) {
             if (!data[field]) {
@@ -561,7 +874,35 @@ class OrderApp {
             return false;
         }
 
+        // 날짜 검증 추가
+        const deliveryDate = new Date(data.deliveryDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        if (deliveryDate < today) {
+            if (!confirm('과거 날짜로 주문을 생성하시겠습니까?')) {
+                return false;
+            }
+        }
+
+        // 중복 주문 검증
+        if (!this.currentEditId && this.isDuplicateOrder(data)) {
+            if (!confirm('유사한 주문이 이미 존재합니다. 계속 진행하시겠습니까?')) {
+                return false;
+            }
+        }
+
         return true;
+    }
+
+    // 중복 주문 검증
+    isDuplicateOrder(newOrder) {
+        return this.orders.some(order => 
+            order.seller === newOrder.seller &&
+            order.product === newOrder.product &&
+            order.deliveryDate === newOrder.deliveryDate &&
+            Math.abs(order.quantity - newOrder.quantity) < 10 // 수량 차이가 10 이하
+        );
     }
 
     // 필드명 한글 변환
@@ -574,7 +915,8 @@ class OrderApp {
             product: '품목',
             quantity: '수량',
             price: '단가',
-            deliveryDate: '도착일'
+            deliveryDate: '도착일',
+            deliveryTime: '도착시간'
         };
         return names[field] || field;
     }
@@ -589,6 +931,7 @@ class OrderApp {
         document.getElementById('quantity').value = '';
         document.getElementById('price').value = '';
         document.getElementById('deliveryDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('deliveryTime').value = '';
         document.getElementById('totalAmount').textContent = '0원';
         
         if (localStorage.getItem('defaultManager')) {
@@ -600,6 +943,14 @@ class OrderApp {
 
     // 주문 목록 표시
     displayOrders() {
+        const searchBox = document.getElementById('searchBox');
+        const searchTerm = searchBox ? searchBox.value : '';
+        
+        if (searchTerm.trim()) {
+            this.performSearch(searchTerm);
+            return;
+        }
+
         const container = document.getElementById('orderListContainer');
         container.innerHTML = '';
 
@@ -646,31 +997,7 @@ class OrderApp {
 
     // 필터링된 주문 가져오기
     getFilteredOrders() {
-        let filtered = [...this.orders];
-        
-        const dateFilter = document.getElementById('filterDate').value;
-        const showPastOrders = document.getElementById('showPastOrders')?.checked || false;
-        
-        // 기본적으로 당일~미래 주문만 표시 (과거 주문 숨김)
-        if (!dateFilter && !showPastOrders) {
-            const today = new Date().toISOString().split('T')[0];
-            filtered = filtered.filter(order => order.deliveryDate >= today);
-        }
-        
-        const managerFilter = document.getElementById('filterManager').value;
-        if (managerFilter) {
-            filtered = filtered.filter(order => order.manager === managerFilter);
-        }
-
-        // 특정 날짜가 선택된 경우 해당 날짜만 표시
-        if (dateFilter) {
-            filtered = filtered.filter(order => order.deliveryDate === dateFilter);
-        }
-
-        // 도착일 기준으로 정렬 (가까운 날짜순)
-        filtered.sort((a, b) => new Date(a.deliveryDate) - new Date(b.deliveryDate));
-
-        return filtered;
+        return this.applyFiltersToOrders(this.orders);
     }
 
     // 주문 요소 생성
@@ -686,10 +1013,14 @@ class OrderApp {
             div.classList.add('past-order');
         }
         
+        const deliveryDateTime = order.deliveryTime ? 
+            `${this.formatDateRelative(order.deliveryDate)} ${order.deliveryTime}` :
+            this.formatDateRelative(order.deliveryDate);
+        
         div.innerHTML = `
             <div class="order-header">
                 <span class="order-id">#${order.id.substr(-6)}</span>
-                <span class="order-date">${this.formatDateRelative(order.deliveryDate)}</span>
+                <span class="order-date">${deliveryDateTime}</span>
             </div>
             <div class="order-details">
                 <div><strong>${order.manager}</strong> | ${order.seller}</div>
@@ -740,17 +1071,23 @@ class OrderApp {
                     <option value="">주문 선택</option>
                     ${futureOrders.length > 0 ? 
                         `<optgroup label="📅 당일~미래 주문 (${futureOrders.length}건)">` +
-                        futureOrders.map(order => 
-                            `<option value="${order.id}">#${order.id.substr(-6)} - ${order.seller} (${this.formatDateRelative(order.deliveryDate)})</option>`
-                        ).join('') +
+                        futureOrders.map(order => {
+                            const deliveryInfo = order.deliveryTime ? 
+                                `${this.formatDateRelative(order.deliveryDate)} ${order.deliveryTime}` :
+                                this.formatDateRelative(order.deliveryDate);
+                            return `<option value="${order.id}">#${order.id.substr(-6)} - ${order.seller} (${deliveryInfo})</option>`;
+                        }).join('') +
                         '</optgroup>'
                         : ''
                     }
                     ${pastOrders.length > 0 ? 
                         `<optgroup label="📋 과거 주문 (${pastOrders.length}건)">` +
-                        pastOrders.map(order => 
-                            `<option value="${order.id}">#${order.id.substr(-6)} - ${order.seller} (${this.formatDateRelative(order.deliveryDate)})</option>`
-                        ).join('') +
+                        pastOrders.map(order => {
+                            const deliveryInfo = order.deliveryTime ? 
+                                `${this.formatDateRelative(order.deliveryDate)} ${order.deliveryTime}` :
+                                this.formatDateRelative(order.deliveryDate);
+                            return `<option value="${order.id}">#${order.id.substr(-6)} - ${order.seller} (${deliveryInfo})</option>`;
+                        }).join('') +
                         '</optgroup>'
                         : ''
                     }
@@ -834,6 +1171,7 @@ class OrderApp {
                     document.getElementById('quantity').value = order.quantity;
                     document.getElementById('price').value = order.price.toLocaleString();
                     document.getElementById('deliveryDate').value = order.deliveryDate;
+                    document.getElementById('deliveryTime').value = order.deliveryTime;
                     this.calculateTotal();
                 }, 100);
             }, 100);
@@ -868,6 +1206,211 @@ class OrderApp {
     // 필터 적용
     filterOrders() {
         this.displayOrders();
+    }
+
+    // 고급 검색 기능
+    searchOrders(searchTerm) {
+        if (!searchTerm) return this.orders;
+        
+        const term = searchTerm.toLowerCase();
+        return this.orders.filter(order => 
+            order.manager?.toLowerCase().includes(term) ||
+            order.seller?.toLowerCase().includes(term) ||
+            order.destination?.toLowerCase().includes(term) ||
+            order.category?.toLowerCase().includes(term) ||
+            order.product?.toLowerCase().includes(term) ||
+            order.id?.toLowerCase().includes(term)
+        );
+    }
+
+    // 통계 분석
+    generateStatistics() {
+        try {
+            const stats = {
+                총주문수: this.orders.length,
+                총매출: this.orders.reduce((sum, order) => sum + (order.total || 0), 0),
+                평균주문금액: 0,
+                담당자별통계: {},
+                카테고리별통계: {},
+                월별통계: {},
+                최다주문판매처: null,
+                최고매출판매처: null
+            };
+
+            if (stats.총주문수 > 0) {
+                stats.평균주문금액 = Math.round(stats.총매출 / stats.총주문수);
+
+                // 담당자별 통계
+                this.orders.forEach(order => {
+                    const manager = order.manager || '알 수 없음';
+                    if (!stats.담당자별통계[manager]) {
+                        stats.담당자별통계[manager] = { 주문수: 0, 매출: 0 };
+                    }
+                    stats.담당자별통계[manager].주문수++;
+                    stats.담당자별통계[manager].매출 += order.total || 0;
+                });
+
+                // 카테고리별 통계
+                this.orders.forEach(order => {
+                    const category = order.category || '기타';
+                    if (!stats.카테고리별통계[category]) {
+                        stats.카테고리별통계[category] = { 주문수: 0, 매출: 0 };
+                    }
+                    stats.카테고리별통계[category].주문수++;
+                    stats.카테고리별통계[category].매출 += order.total || 0;
+                });
+
+                // 월별 통계
+                this.orders.forEach(order => {
+                    if (order.deliveryDate) {
+                        const month = order.deliveryDate.substring(0, 7); // YYYY-MM
+                        if (!stats.월별통계[month]) {
+                            stats.월별통계[month] = { 주문수: 0, 매출: 0 };
+                        }
+                        stats.월별통계[month].주문수++;
+                        stats.월별통계[month].매출 += order.total || 0;
+                    }
+                });
+
+                // 판매처별 분석
+                const sellerStats = {};
+                this.orders.forEach(order => {
+                    const seller = order.seller || '알 수 없음';
+                    if (!sellerStats[seller]) {
+                        sellerStats[seller] = { 주문수: 0, 매출: 0 };
+                    }
+                    sellerStats[seller].주문수++;
+                    sellerStats[seller].매출 += order.total || 0;
+                });
+
+                // 최다 주문 판매처
+                stats.최다주문판매처 = Object.entries(sellerStats)
+                    .sort((a, b) => b[1].주문수 - a[1].주문수)[0];
+
+                // 최고 매출 판매처
+                stats.최고매출판매처 = Object.entries(sellerStats)
+                    .sort((a, b) => b[1].매출 - a[1].매출)[0];
+            }
+
+            return stats;
+        } catch (error) {
+            console.error('통계 생성 중 오류:', error);
+            this.showNotification('통계 생성에 실패했습니다.', 'error');
+            return null;
+        }
+    }
+
+    // 통계 보고서 표시
+    showStatistics() {
+        const stats = this.generateStatistics();
+        if (!stats) return;
+
+        const statsHTML = `
+            <div style="background: white; padding: 2rem; border-radius: 8px; max-width: 800px; margin: 2rem auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                <h2 style="color: #333; margin-bottom: 1.5rem;">📊 주문 통계 분석</h2>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                    <div style="background: #e3f2fd; padding: 1rem; border-radius: 8px; text-align: center;">
+                        <h3 style="margin: 0; color: #1976d2;">총 주문수</h3>
+                        <p style="font-size: 2rem; font-weight: bold; margin: 0.5rem 0; color: #1976d2;">${stats.총주문수}</p>
+                    </div>
+                    <div style="background: #e8f5e8; padding: 1rem; border-radius: 8px; text-align: center;">
+                        <h3 style="margin: 0; color: #4caf50;">총 매출</h3>
+                        <p style="font-size: 2rem; font-weight: bold; margin: 0.5rem 0; color: #4caf50;">${stats.총매출.toLocaleString()}원</p>
+                    </div>
+                    <div style="background: #fff3e0; padding: 1rem; border-radius: 8px; text-align: center;">
+                        <h3 style="margin: 0; color: #ff9800;">평균 주문금액</h3>
+                        <p style="font-size: 2rem; font-weight: bold; margin: 0.5rem 0; color: #ff9800;">${stats.평균주문금액.toLocaleString()}원</p>
+                    </div>
+                </div>
+
+                ${stats.최다주문판매처 ? `
+                <div style="margin-bottom: 1.5rem;">
+                    <h3 style="color: #333;">🏆 최다 주문 판매처</h3>
+                    <p style="background: #f5f5f5; padding: 1rem; border-radius: 4px; margin: 0;">
+                        <strong>${stats.최다주문판매처[0]}</strong> - ${stats.최다주문판매처[1].주문수}건
+                    </p>
+                </div>
+                ` : ''}
+
+                ${stats.최고매출판매처 ? `
+                <div style="margin-bottom: 1.5rem;">
+                    <h3 style="color: #333;">💰 최고 매출 판매처</h3>
+                    <p style="background: #f5f5f5; padding: 1rem; border-radius: 4px; margin: 0;">
+                        <strong>${stats.최고매출판매처[0]}</strong> - ${stats.최고매출판매처[1].매출.toLocaleString()}원
+                    </p>
+                </div>
+                ` : ''}
+
+                <div style="text-align: center; margin-top: 2rem;">
+                    <button onclick="this.parentElement.parentElement.remove()" 
+                            style="padding: 0.8rem 2rem; background: #2196f3; color: white; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer;">
+                        닫기
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; overflow-y: auto;';
+        overlay.innerHTML = statsHTML;
+        
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.remove();
+        });
+        
+        document.body.appendChild(overlay);
+    }
+
+    // 향상된 에러 처리
+    handleError(error, context = '작업') {
+        console.error(`${context} 중 오류:`, error);
+        
+        const errorInfo = {
+            message: error.message,
+            stack: error.stack,
+            context: context,
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            url: window.location.href
+        };
+
+        // 오류 로그 저장
+        this.saveErrorLog(errorInfo);
+
+        // 사용자에게 친근한 메시지 표시
+        const userMessage = this.getUserFriendlyErrorMessage(error);
+        this.showNotification(userMessage, 'error');
+    }
+
+    // 사용자 친화적 오류 메시지
+    getUserFriendlyErrorMessage(error) {
+        if (error.name === 'NetworkError' || error.message.includes('fetch')) {
+            return '네트워크 연결을 확인해주세요.';
+        } else if (error.name === 'QuotaExceededError') {
+            return '저장 공간이 부족합니다. 오래된 데이터를 정리해주세요.';
+        } else if (error.message.includes('JSON')) {
+            return '데이터 형식에 오류가 있습니다.';
+        } else {
+            return '예상치 못한 오류가 발생했습니다. 새로고침 후 다시 시도해주세요.';
+        }
+    }
+
+    // 오류 로그 저장
+    saveErrorLog(errorInfo) {
+        try {
+            const errorLogs = JSON.parse(localStorage.getItem('error_logs') || '[]');
+            errorLogs.push(errorInfo);
+            
+            // 최대 50개의 로그만 유지
+            if (errorLogs.length > 50) {
+                errorLogs.shift();
+            }
+            
+            localStorage.setItem('error_logs', JSON.stringify(errorLogs));
+        } catch (e) {
+            console.error('오류 로그 저장 실패:', e);
+        }
     }
 
     // 설정 업데이트
@@ -917,23 +1460,48 @@ class OrderApp {
         }
     }
 
-    // localStorage에서 주문 로드
+    // localStorage와 order_list.json에서 주문 로드
     async loadOrders() {
         try {
+            // 먼저 localStorage에서 로드
+            let localStorageOrders = [];
             const ordersData = localStorage.getItem('trkorea_orders');
             if (ordersData) {
-                this.orders = JSON.parse(ordersData);
-                console.log(`${this.orders.length}개의 주문을 로드했습니다.`);
-            } else {
-                this.orders = [];
-                console.log('첫 실행: 주문 데이터를 초기화합니다.');
+                localStorageOrders = JSON.parse(ordersData);
+                console.log(`localStorage에서 ${localStorageOrders.length}개의 주문을 로드했습니다.`);
             }
+
+            // order_list.json 파일에서 로드 시도
+            let fileOrders = [];
+            try {
+                const response = await fetch('./order_list.json');
+                if (response.ok) {
+                    fileOrders = await response.json();
+                    console.log(`order_list.json에서 ${fileOrders.length}개의 주문을 로드했습니다.`);
+                }
+            } catch (error) {
+                console.log('order_list.json 파일을 찾을 수 없거나 로드 실패:', error.message);
+            }
+
+            // 두 소스의 주문을 합치기 (중복 제거)
+            const allOrders = [...localStorageOrders];
+            fileOrders.forEach(fileOrder => {
+                if (!localStorageOrders.some(localOrder => localOrder.id === fileOrder.id)) {
+                    allOrders.push(fileOrder);
+                }
+            });
+
+            this.orders = allOrders;
+            
+            // 통합된 주문을 localStorage에 업데이트
+            if (allOrders.length > localStorageOrders.length) {
+                localStorage.setItem('trkorea_orders', JSON.stringify(allOrders));
+                console.log('새로운 주문이 localStorage에 업데이트되었습니다.');
+            }
+
+            console.log(`총 ${this.orders.length}개의 주문을 로드했습니다.`);
         } catch (error) {
             console.error('주문 로드 실패:', error);
-            // JSON 파싱 오류 등 실제 오류 상황에서만 메시지 표시
-            if (localStorage.getItem('trkorea_orders')) {
-                this.showNotification('저장된 주문 데이터가 손상되었습니다. 초기화합니다.', 'warning');
-            }
             this.orders = [];
         }
     }
@@ -985,21 +1553,355 @@ class OrderApp {
             // 설치 버튼 표시 (필요시)
         });
     }
+
+    // 파일에서 주문 가져오기 (수동)
+    async loadOrdersFromFile() {
+        try {
+            if ('showOpenFilePicker' in window) {
+                // File System Access API 사용
+                const [fileHandle] = await window.showOpenFilePicker({
+                    types: [{
+                        description: 'JSON files',
+                        accept: { 'application/json': ['.json'] }
+                    }]
+                });
+                
+                const file = await fileHandle.getFile();
+                const contents = await file.text();
+                const fileOrders = JSON.parse(contents);
+                
+                // 기존 주문과 합치기 (중복 제거)
+                const existingIds = this.orders.map(order => order.id);
+                const newOrders = fileOrders.filter(order => !existingIds.includes(order.id));
+                
+                this.orders = [...this.orders, ...newOrders];
+                localStorage.setItem('trkorea_orders', JSON.stringify(this.orders));
+                
+                this.displayOrders();
+                this.showNotification(`${newOrders.length}개의 새로운 주문을 가져왔습니다.`, 'success');
+            } else {
+                // File input 방식 사용
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.json';
+                input.onchange = async (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const contents = await file.text();
+                        const fileOrders = JSON.parse(contents);
+                        
+                        const existingIds = this.orders.map(order => order.id);
+                        const newOrders = fileOrders.filter(order => !existingIds.includes(order.id));
+                        
+                        this.orders = [...this.orders, ...newOrders];
+                        localStorage.setItem('trkorea_orders', JSON.stringify(this.orders));
+                        
+                        this.displayOrders();
+                        this.showNotification(`${newOrders.length}개의 새로운 주문을 가져왔습니다.`, 'success');
+                    }
+                };
+                input.click();
+            }
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                this.showNotification(`파일 로드 실패: ${error.message}`, 'error');
+            }
+        }
+    }
+
+    // 고유 ID 생성
+    generateOrderId() {
+        return 'order_' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    // order_list.json 파일에 저장
+    async saveToFile() {
+        try {
+            // File System Access API 지원 확인 (Chrome 계열)
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const fileHandle = await window.showSaveFilePicker({
+                        suggestedName: 'order_list.json',
+                        types: [{
+                            description: 'JSON files',
+                            accept: { 'application/json': ['.json'] }
+                        }]
+                    });
+                    
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(JSON.stringify(this.orders, null, 2));
+                    await writable.close();
+                    
+                    this.showNotification('파일이 성공적으로 저장되었습니다!', 'success');
+                    console.log('주문 데이터가 order_list.json에 저장되었습니다.');
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        console.error('File System Access API 저장 실패:', error);
+                        // 실패 시 다운로드 방식으로 대체
+                        this.downloadOrderList();
+                    }
+                }
+            } else {
+                // File System Access API 미지원 시 다운로드 방식 사용
+                this.downloadOrderList();
+            }
+        } catch (error) {
+            console.error('파일 저장 중 오류:', error);
+            // 오류 발생 시에도 다운로드 방식으로 대체
+            this.downloadOrderList();
+        }
+    }
+
+    // 주문 리스트 다운로드 (대체 방법)
+    downloadOrderList() {
+        try {
+            const dataStr = JSON.stringify(this.orders, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'order_list.json';
+            link.style.display = 'none';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            URL.revokeObjectURL(url);
+            
+            this.showNotification('파일이 다운로드 폴더에 저장되었습니다!', 'success');
+            console.log('order_list.json 파일이 다운로드되었습니다.');
+        } catch (error) {
+            console.error('파일 다운로드 실패:', error);
+            this.showNotification('파일 저장에 실패했습니다.', 'error');
+        }
+    }
+
+    // 오프라인 상태 처리
+    setupOfflineHandling() {
+        // 오프라인 상태 변경 감지
+        window.addEventListener('online', () => {
+            this.isOnline = true;
+            this.showNotification('네트워크 연결됨', 'success');
+            this.syncData();
+        });
+
+        window.addEventListener('offline', () => {
+            this.isOnline = false;
+            this.showNotification('네트워크 연결 끊김', 'warning');
+        });
+    }
+
+    // 데이터 백업 설정
+    setupAutoBackup() {
+        // 자동 백업 설정 (localStorage만)
+        this.autoBackupInterval = setInterval(() => {
+            this.autoBackupToLocalStorage();
+        }, 1000 * 60 * 30); // 30분마다 백업
+    }
+
+    // 자동 localStorage 백업
+    autoBackupToLocalStorage() {
+        try {
+            if (this.orders.length > 0) {
+                localStorage.setItem('trkorea_orders_backup', JSON.stringify({
+                    orders: this.orders,
+                    timestamp: new Date().toISOString(),
+                    version: '1.0.0'
+                }));
+                localStorage.setItem('lastBackupTime', new Date().toISOString());
+                console.log('자동 백업 완료:', new Date().toLocaleString());
+            }
+        } catch (error) {
+            console.error('자동 백업 중 오류:', error);
+            if (error.name === 'QuotaExceededError') {
+                this.showNotification('저장 공간이 부족합니다. 오래된 데이터를 정리해주세요.', 'warning');
+            }
+        }
+    }
+
+    // 데이터 백업
+    async backupData() {
+        try {
+            if (this.isOnline) {
+                await this.saveToFile();
+                localStorage.setItem('lastBackupTime', new Date().toISOString());
+                this.showNotification('데이터가 성공적으로 백업되었습니다.', 'success');
+            } else {
+                this.showNotification('오프라인 상태로 인해 백업 실패', 'error');
+            }
+        } catch (error) {
+            console.error('데이터 백업 중 오류:', error);
+            this.showNotification('데이터 백업에 실패했습니다.', 'error');
+        }
+    }
+
+    // 데이터 동기화
+    async syncData() {
+        if (this.isOnline) {
+            try {
+                await this.loadOrders();
+                this.showNotification('데이터가 성공적으로 동기화되었습니다.', 'success');
+            } catch (error) {
+                console.error('데이터 동기화 실패:', error);
+                this.showNotification('데이터 동기화에 실패했습니다.', 'error');
+            }
+        } else {
+            this.showNotification('오프라인 상태로 인해 동기화 실패', 'warning');
+        }
+    }
+
+    // 데이터 무결성 검사
+    validateDataIntegrity() {
+        try {
+            const issues = [];
+            
+            this.orders.forEach((order, index) => {
+                // 필수 필드 검사
+                const requiredFields = ['id', 'manager', 'seller', 'destination', 'category', 'product', 'quantity', 'price', 'deliveryDate'];
+                requiredFields.forEach(field => {
+                    if (!order[field]) {
+                        issues.push(`주문 ${index + 1}: ${field} 필드 누락`);
+                    }
+                });
+
+                // 데이터 타입 검사
+                if (order.quantity && (typeof order.quantity !== 'number' || order.quantity <= 0)) {
+                    issues.push(`주문 ${index + 1}: 잘못된 수량 값`);
+                }
+
+                if (order.price && (typeof order.price !== 'number' || order.price <= 0)) {
+                    issues.push(`주문 ${index + 1}: 잘못된 가격 값`);
+                }
+
+                // 날짜 형식 검사
+                if (order.deliveryDate && isNaN(new Date(order.deliveryDate))) {
+                    issues.push(`주문 ${index + 1}: 잘못된 날짜 형식`);
+                }
+            });
+
+            if (issues.length > 0) {
+                console.warn('데이터 무결성 문제 발견:', issues);
+                return { valid: false, issues };
+            }
+
+            return { valid: true, issues: [] };
+        } catch (error) {
+            console.error('데이터 무결성 검사 중 오류:', error);
+            return { valid: false, issues: ['데이터 검사 중 오류 발생'] };
+        }
+    }
+
+    // 손상된 데이터 복구
+    repairData() {
+        try {
+            let repairedCount = 0;
+            
+            this.orders = this.orders.filter(order => {
+                // 최소 필수 정보가 있는 주문만 유지
+                if (order.id && order.seller && order.product) {
+                    // 누락된 필드 기본값으로 복구
+                    if (!order.manager) order.manager = '알 수 없음';
+                    if (!order.destination) order.destination = '미지정';
+                    if (!order.category) order.category = '기타';
+                    if (!order.quantity || order.quantity <= 0) order.quantity = 1;
+                    if (!order.price || order.price <= 0) order.price = 0;
+                    if (!order.deliveryDate) order.deliveryDate = new Date().toISOString().split('T')[0];
+                    if (!order.total) order.total = order.quantity * order.price;
+                    if (!order.createdAt) order.createdAt = new Date().toISOString();
+                    if (!order.updatedAt) order.updatedAt = new Date().toISOString();
+                    
+                    repairedCount++;
+                    return true;
+                }
+                return false;
+            });
+
+            if (repairedCount > 0) {
+                localStorage.setItem('trkorea_orders', JSON.stringify(this.orders));
+                this.showNotification(`${repairedCount}개의 주문 데이터가 복구되었습니다.`, 'success');
+            }
+
+            return repairedCount;
+        } catch (error) {
+            console.error('데이터 복구 중 오류:', error);
+            this.showNotification('데이터 복구에 실패했습니다.', 'error');
+            return 0;
+        }
+    }
+
+    // 검색 수행
+    performSearch(searchTerm) {
+        const container = document.getElementById('orderListContainer');
+        container.innerHTML = '';
+
+        if (this.orders.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">저장된 주문이 없습니다.</div>';
+            return;
+        }
+
+        let filteredOrders = this.orders;
+
+        // 검색어 필터링
+        if (searchTerm.trim()) {
+            filteredOrders = this.searchOrders(searchTerm.trim());
+        }
+
+        // 기존 필터 적용
+        filteredOrders = this.applyFiltersToOrders(filteredOrders);
+        
+        // 통계 업데이트
+        this.updateOrderStats(this.orders, filteredOrders);
+        
+        if (filteredOrders.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">검색 결과가 없습니다.</div>';
+            return;
+        }
+        
+        filteredOrders.forEach(order => {
+            const orderElement = this.createOrderElement(order);
+            container.appendChild(orderElement);
+        });
+    }
+
+    // 필터 적용 (검색과 분리)
+    applyFiltersToOrders(orders) {
+        let filtered = [...orders];
+        
+        const dateFilter = document.getElementById('filterDate').value;
+        const managerFilter = document.getElementById('filterManager').value;
+        const showPastOrders = document.getElementById('showPastOrders')?.checked || false;
+        
+        // 기본적으로 당일~미래 주문만 표시 (과거 주문 숨김)
+        if (!dateFilter && !showPastOrders) {
+            const today = new Date().toISOString().split('T')[0];
+            filtered = filtered.filter(order => order.deliveryDate >= today);
+        }
+        
+        if (managerFilter) {
+            filtered = filtered.filter(order => order.manager === managerFilter);
+        }
+
+        // 특정 날짜가 선택된 경우 해당 날짜만 표시
+        if (dateFilter) {
+            filtered = filtered.filter(order => order.deliveryDate === dateFilter);
+        }
+
+        // 도착일 기준으로 정렬 (가까운 날짜순)
+        filtered.sort((a, b) => new Date(a.deliveryDate) - new Date(b.deliveryDate));
+
+        return filtered;
+    }
 }
 
 // 앱 초기화
+let app; // 전역 변수로 선언
 document.addEventListener('DOMContentLoaded', () => {
-    new OrderApp();
+    app = new OrderApp(); // 전역 변수에 할당
 });
 
 // 가격 입력 시 천단위 콤마 자동 추가 함수
 function addCommas(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
-
-// 숫자만 입력 허용
-function onlyNumbers(event) {
-    if (!/[0-9]/.test(event.key) && !['Backspace', 'Delete', 'Tab', 'Escape', 'Enter'].includes(event.key)) {
-        event.preventDefault();
-    }
 } 
