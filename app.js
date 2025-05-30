@@ -6,6 +6,11 @@ class OrderApp {
         this.currentEditId = null;
         this.apiBaseUrl = './api'; // API 기본 URL
         
+        // Firebase 설정
+        this.firebaseConfig = null;
+        this.firebaseDb = null;
+        this.isFirebaseEnabled = false;
+        
         // 로그인 시스템 관련
         this.userConfig = null;
         this.currentUser = null;
@@ -27,6 +32,95 @@ class OrderApp {
         this.init();
         this.setupOfflineHandling();
         this.setupAutoBackup();
+        this.initFirebase();
+    }
+
+    // Firebase 초기화
+    async initFirebase() {
+        try {
+            // Firebase 설정 로드
+            await this.loadFirebaseConfig();
+            
+            if (this.firebaseConfig && typeof firebase !== 'undefined') {
+                // Firebase 초기화
+                firebase.initializeApp(this.firebaseConfig);
+                this.firebaseDb = firebase.database();
+                this.isFirebaseEnabled = true;
+                
+                console.log('✅ Firebase 연결 성공!');
+                this.showNotification('☁️ 클라우드 저장 기능이 활성화되었습니다!', 'success');
+                
+                // 기존 데이터 동기화
+                await this.syncWithFirebase();
+                
+            } else {
+                console.log('⚠️ Firebase 설정이 없습니다. 로컬 저장만 사용됩니다.');
+            }
+        } catch (error) {
+            console.error('Firebase 초기화 실패:', error);
+            this.isFirebaseEnabled = false;
+        }
+    }
+
+    // Firebase 설정 로드
+    async loadFirebaseConfig() {
+        try {
+            const response = await fetch('./firebase-config.json');
+            if (response.ok) {
+                this.firebaseConfig = await response.json();
+                console.log('Firebase 설정 로드 완료');
+            }
+        } catch (error) {
+            console.log('Firebase 설정 파일이 없습니다. 설정이 필요합니다.');
+        }
+    }
+
+    // Firebase와 동기화
+    async syncWithFirebase() {
+        if (!this.isFirebaseEnabled) return;
+        
+        try {
+            // Firebase에서 기존 데이터 가져오기
+            const snapshot = await this.firebaseDb.ref('orders').once('value');
+            const firebaseOrders = snapshot.val();
+            
+            if (firebaseOrders) {
+                // 배열로 변환
+                const firebaseOrderArray = Object.values(firebaseOrders);
+                
+                // 로컬 데이터와 병합 (중복 제거)
+                const existingIds = this.orders.map(order => order.id);
+                const newOrders = firebaseOrderArray.filter(order => !existingIds.includes(order.id));
+                
+                if (newOrders.length > 0) {
+                    this.orders = [...this.orders, ...newOrders];
+                    localStorage.setItem('trkorea_orders', JSON.stringify(this.orders));
+                    console.log(`${newOrders.length}개의 새로운 주문을 Firebase에서 동기화했습니다.`);
+                }
+            }
+        } catch (error) {
+            console.error('Firebase 동기화 실패:', error);
+        }
+    }
+
+    // Firebase에 자동 저장
+    async saveToFirebase(order) {
+        if (!this.isFirebaseEnabled) return false;
+        
+        try {
+            // Firebase에 주문 저장 (ID를 키로 사용)
+            await this.firebaseDb.ref(`orders/${order.id}`).set({
+                ...order,
+                savedAt: firebase.database.ServerValue.TIMESTAMP,
+                savedBy: this.currentUser?.name || 'Unknown'
+            });
+            
+            console.log('✅ Firebase에 자동 저장 완료:', order.id);
+            return true;
+        } catch (error) {
+            console.error('❌ Firebase 저장 실패:', error);
+            return false;
+        }
     }
 
     // 디바운싱 헬퍼 함수
@@ -559,12 +653,20 @@ class OrderApp {
         });
 
         // 선택된 화면 표시
-        document.getElementById(screenName).classList.add('active');
+        const targetScreen = document.getElementById(screenName);
+        if (targetScreen) {
+            targetScreen.classList.add('active');
+        } else {
+            console.error(`화면을 찾을 수 없습니다: ${screenName}`);
+            return;
+        }
 
-        // 해당 네비게이션 버튼 활성화
-        const navBtn = document.querySelector(`[data-screen="${screenName}"]`);
-        if (navBtn) {
-            navBtn.classList.add('active');
+        // 해당 네비게이션 버튼 활성화 (설정 화면이 아닌 경우에만)
+        if (screenName !== 'settings') {
+            const navBtn = document.querySelector(`[data-screen="${screenName}"]`);
+            if (navBtn) {
+                navBtn.classList.add('active');
+            }
         }
 
         // 화면별 특별 처리
@@ -574,6 +676,15 @@ class OrderApp {
             this.displayEditOrders();
         } else if (screenName === 'settings') {
             this.updateSettings();
+            // 설정 화면으로 갈 때는 어떤 네비게이션 버튼도 활성화하지 않음
+        }
+
+        // 설정 화면에서 다른 화면으로 갈 때는 해당 네비게이션 버튼 활성화
+        if (screenName !== 'settings') {
+            const navBtn = document.querySelector(`[data-screen="${screenName}"]`);
+            if (navBtn) {
+                navBtn.classList.add('active');
+            }
         }
     }
 
@@ -734,7 +845,7 @@ class OrderApp {
         document.getElementById('totalAmount').textContent = total.toLocaleString() + '원';
     }
 
-    // 주문 저장 (localStorage 우선)
+    // 주문 저장 (Firebase 자동 저장 + localStorage 백업)
     async saveOrder() {
         const formData = this.getFormData();
         
@@ -752,6 +863,7 @@ class OrderApp {
                 updatedAt: new Date().toISOString()
             };
 
+            // 로컬 배열 업데이트
             if (this.currentEditId) {
                 // 수정
                 const index = this.orders.findIndex(o => o.id === this.currentEditId);
@@ -763,27 +875,37 @@ class OrderApp {
                 this.orders.push(order);
             }
 
-            // localStorage에 즉시 저장 (항상 실행)
+            // 1. localStorage에 즉시 저장 (항상 실행)
             localStorage.setItem('trkorea_orders', JSON.stringify(this.orders));
+            
+            // 2. Firebase에 자동 저장 시도
+            let firebaseSaved = false;
+            if (this.isFirebaseEnabled) {
+                firebaseSaved = await this.saveToFirebase(order);
+            }
+            
+            // 3. 결과에 따른 피드백
+            const action = this.currentEditId ? '수정' : '저장';
+            
+            if (firebaseSaved) {
+                this.showNotification(`✅ 주문이 클라우드에 ${action}되었습니다!\n🌐 모든 팀원이 실시간으로 확인 가능합니다.`, 'success');
+            } else if (this.isFirebaseEnabled) {
+                this.showNotification(`⚠️ 주문이 로컬에 ${action}되었습니다.\n📶 네트워크 연결을 확인해주세요.`, 'warning');
+            } else {
+                this.showNotification(`💾 주문이 ${action}되었습니다!\n⚙️ 클라우드 저장을 설정하면 팀원과 자동 공유됩니다.`, 'success');
+            }
             
             this.updateUI();
             this.resetForm();
             this.switchScreen('orderList');
             
-            // 성공 메시지와 함께 파일 저장 옵션 제공
-            const action = this.currentEditId ? '수정' : '저장';
-            this.showNotification(`주문이 성공적으로 ${action}되었습니다!`, 'success');
-            
             // currentEditId 리셋
             this.currentEditId = null;
-            
-            // 선택적 파일 저장 (사용자가 원할 때만)
-            this.showFileSaveOption();
             
         } catch (error) {
             console.error('주문 저장 오류:', error);
             const action = this.currentEditId ? '수정' : '저장';
-            this.showNotification(`주문 ${action} 실패: ${error.message}`, 'error');
+            this.showNotification(`❌ 주문 ${action} 실패: ${error.message}`, 'error');
         } finally {
             this.showLoading(false);
         }
@@ -1428,6 +1550,39 @@ class OrderApp {
         if (loginUserElement && this.currentUser) {
             loginUserElement.textContent = this.currentUser.name;
         }
+
+        // Firebase 연결 상태 표시
+        const settingsInfo = document.querySelector('.settings-info');
+        if (settingsInfo) {
+            // 기존 Firebase 상태 정보 제거
+            const existingFirebaseInfo = settingsInfo.querySelector('.firebase-status');
+            if (existingFirebaseInfo) {
+                existingFirebaseInfo.remove();
+            }
+
+            // 새로운 Firebase 상태 정보 추가
+            const firebaseStatusDiv = document.createElement('div');
+            firebaseStatusDiv.className = 'firebase-status';
+            firebaseStatusDiv.style.cssText = 'margin-top: 1rem; padding: 1rem; border-radius: 8px; border-left: 4px solid;';
+            
+            if (this.isFirebaseEnabled) {
+                firebaseStatusDiv.style.backgroundColor = '#e8f5e8';
+                firebaseStatusDiv.style.borderLeftColor = '#4caf50';
+                firebaseStatusDiv.innerHTML = `
+                    <h4 style="color: #2e7d32; margin: 0 0 0.5rem 0;">🔥 Firebase 클라우드 저장</h4>
+                    <p style="color: #333; margin: 0; font-size: 0.9rem;">✅ 연결됨 - 저장 버튼 클릭시 자동으로 클라우드에 저장됩니다</p>
+                `;
+            } else {
+                firebaseStatusDiv.style.backgroundColor = '#fff3e0';
+                firebaseStatusDiv.style.borderLeftColor = '#ff9800';
+                firebaseStatusDiv.innerHTML = `
+                    <h4 style="color: #f57c00; margin: 0 0 0.5rem 0;">🔥 Firebase 클라우드 저장</h4>
+                    <p style="color: #333; margin: 0; font-size: 0.9rem;">⚠️ 설정되지 않음 - 로컬 저장만 사용중입니다</p>
+                `;
+            }
+            
+            settingsInfo.appendChild(firebaseStatusDiv);
+        }
     }
 
     // 데이터 내보내기
@@ -1449,18 +1604,35 @@ class OrderApp {
         this.showNotification('데이터가 성공적으로 내보내졌습니다.', 'success');
     }
 
-    // 모든 데이터 삭제 (localStorage 사용)
-    clearAllData() {
+    // 모든 데이터 삭제 (Firebase + localStorage)
+    async clearAllData() {
         if (confirm('정말로 모든 주문 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
-            this.orders = [];
-            localStorage.removeItem('trkorea_orders');
-            this.updateUI();
-            this.displayOrders();
-            this.showNotification('모든 주문 데이터가 삭제되었습니다.', 'success');
+            try {
+                this.showLoading(true);
+                
+                // Firebase에서 데이터 삭제
+                if (this.isFirebaseEnabled) {
+                    await this.firebaseDb.ref('orders').remove();
+                    console.log('Firebase 데이터 삭제 완료');
+                }
+                
+                // 로컬 데이터 삭제
+                this.orders = [];
+                localStorage.removeItem('trkorea_orders');
+                
+                this.updateUI();
+                this.displayOrders();
+                this.showNotification('✅ 모든 주문 데이터가 삭제되었습니다.', 'success');
+            } catch (error) {
+                console.error('데이터 삭제 오류:', error);
+                this.showNotification('❌ 데이터 삭제 중 오류가 발생했습니다.', 'error');
+            } finally {
+                this.showLoading(false);
+            }
         }
     }
 
-    // localStorage와 order_list.json에서 주문 로드
+    // localStorage와 Firebase에서 주문 로드
     async loadOrders() {
         try {
             // 먼저 localStorage에서 로드
@@ -1471,34 +1643,9 @@ class OrderApp {
                 console.log(`localStorage에서 ${localStorageOrders.length}개의 주문을 로드했습니다.`);
             }
 
-            // order_list.json 파일에서 로드 시도
-            let fileOrders = [];
-            try {
-                const response = await fetch('./order_list.json');
-                if (response.ok) {
-                    fileOrders = await response.json();
-                    console.log(`order_list.json에서 ${fileOrders.length}개의 주문을 로드했습니다.`);
-                }
-            } catch (error) {
-                console.log('order_list.json 파일을 찾을 수 없거나 로드 실패:', error.message);
-            }
-
-            // 두 소스의 주문을 합치기 (중복 제거)
-            const allOrders = [...localStorageOrders];
-            fileOrders.forEach(fileOrder => {
-                if (!localStorageOrders.some(localOrder => localOrder.id === fileOrder.id)) {
-                    allOrders.push(fileOrder);
-                }
-            });
-
-            this.orders = allOrders;
+            this.orders = localStorageOrders;
             
-            // 통합된 주문을 localStorage에 업데이트
-            if (allOrders.length > localStorageOrders.length) {
-                localStorage.setItem('trkorea_orders', JSON.stringify(allOrders));
-                console.log('새로운 주문이 localStorage에 업데이트되었습니다.');
-            }
-
+            // Firebase가 활성화되어 있으면 동기화는 initFirebase에서 처리됨
             console.log(`총 ${this.orders.length}개의 주문을 로드했습니다.`);
         } catch (error) {
             console.error('주문 로드 실패:', error);
@@ -1577,6 +1724,13 @@ class OrderApp {
                 this.orders = [...this.orders, ...newOrders];
                 localStorage.setItem('trkorea_orders', JSON.stringify(this.orders));
                 
+                // Firebase에도 동기화
+                if (this.isFirebaseEnabled) {
+                    for (const order of newOrders) {
+                        await this.saveToFirebase(order);
+                    }
+                }
+                
                 this.displayOrders();
                 this.showNotification(`${newOrders.length}개의 새로운 주문을 가져왔습니다.`, 'success');
             } else {
@@ -1596,6 +1750,13 @@ class OrderApp {
                         this.orders = [...this.orders, ...newOrders];
                         localStorage.setItem('trkorea_orders', JSON.stringify(this.orders));
                         
+                        // Firebase에도 동기화
+                        if (this.isFirebaseEnabled) {
+                            for (const order of newOrders) {
+                                await this.saveToFirebase(order);
+                            }
+                        }
+                        
                         this.displayOrders();
                         this.showNotification(`${newOrders.length}개의 새로운 주문을 가져왔습니다.`, 'success');
                     }
@@ -1614,14 +1775,20 @@ class OrderApp {
         return 'order_' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 9);
     }
 
-    // order_list.json 파일에 저장
+    // order_list.json 파일에 저장 (OneDrive 경로 지원)
     async saveToFile() {
         try {
+            const fileName = 'order_list.json';
+            
             // File System Access API 지원 확인 (Chrome 계열)
             if ('showSaveFilePicker' in window) {
                 try {
+                    // OneDrive 경로 제안
+                    const suggestedPath = 'OneDrive - 주식회사 티알코리아\\00_OFFICE_AUTOMATION\\117_ORDER_AUTOMATION\\github';
+                    
                     const fileHandle = await window.showSaveFilePicker({
-                        suggestedName: 'order_list.json',
+                        suggestedName: fileName,
+                        startIn: 'documents', // 문서 폴더에서 시작
                         types: [{
                             description: 'JSON files',
                             accept: { 'application/json': ['.json'] }
@@ -1632,28 +1799,30 @@ class OrderApp {
                     await writable.write(JSON.stringify(this.orders, null, 2));
                     await writable.close();
                     
-                    this.showNotification('파일이 성공적으로 저장되었습니다!', 'success');
+                    // 성공 메시지에 경로 안내 추가
+                    this.showNotification(`✅ 파일이 저장되었습니다!\n💡 다음 경로에 저장하세요:\n${suggestedPath}\\${fileName}`, 'success');
                     console.log('주문 데이터가 order_list.json에 저장되었습니다.');
+                    
                 } catch (error) {
                     if (error.name !== 'AbortError') {
                         console.error('File System Access API 저장 실패:', error);
                         // 실패 시 다운로드 방식으로 대체
-                        this.downloadOrderList();
+                        this.downloadOrderListWithGuide();
                     }
                 }
             } else {
                 // File System Access API 미지원 시 다운로드 방식 사용
-                this.downloadOrderList();
+                this.downloadOrderListWithGuide();
             }
         } catch (error) {
             console.error('파일 저장 중 오류:', error);
             // 오류 발생 시에도 다운로드 방식으로 대체
-            this.downloadOrderList();
+            this.downloadOrderListWithGuide();
         }
     }
 
-    // 주문 리스트 다운로드 (대체 방법)
-    downloadOrderList() {
+    // 경로 안내가 포함된 다운로드
+    downloadOrderListWithGuide() {
         try {
             const dataStr = JSON.stringify(this.orders, null, 2);
             const dataBlob = new Blob([dataStr], { type: 'application/json' });
@@ -1670,11 +1839,12 @@ class OrderApp {
             
             URL.revokeObjectURL(url);
             
-            this.showNotification('파일이 다운로드 폴더에 저장되었습니다!', 'success');
+            this.showNotification('✅ 파일이 다운로드되었습니다!', 'success');
             console.log('order_list.json 파일이 다운로드되었습니다.');
+            
         } catch (error) {
             console.error('파일 다운로드 실패:', error);
-            this.showNotification('파일 저장에 실패했습니다.', 'error');
+            this.showNotification('❌ 파일 저장에 실패했습니다.', 'error');
         }
     }
 
@@ -1721,27 +1891,11 @@ class OrderApp {
         }
     }
 
-    // 데이터 백업
-    async backupData() {
-        try {
-            if (this.isOnline) {
-                await this.saveToFile();
-                localStorage.setItem('lastBackupTime', new Date().toISOString());
-                this.showNotification('데이터가 성공적으로 백업되었습니다.', 'success');
-            } else {
-                this.showNotification('오프라인 상태로 인해 백업 실패', 'error');
-            }
-        } catch (error) {
-            console.error('데이터 백업 중 오류:', error);
-            this.showNotification('데이터 백업에 실패했습니다.', 'error');
-        }
-    }
-
     // 데이터 동기화
     async syncData() {
-        if (this.isOnline) {
+        if (this.isOnline && this.isFirebaseEnabled) {
             try {
-                await this.loadOrders();
+                await this.syncWithFirebase();
                 this.showNotification('데이터가 성공적으로 동기화되었습니다.', 'success');
             } catch (error) {
                 console.error('데이터 동기화 실패:', error);
@@ -1892,6 +2046,270 @@ class OrderApp {
         filtered.sort((a, b) => new Date(a.deliveryDate) - new Date(b.deliveryDate));
 
         return filtered;
+    }
+
+    // OneDrive 자동 저장 대안 방법들 안내
+    showCloudSaveAlternatives() {
+        const alternativesHTML = `
+            <div style="background: white; padding: 2rem; border-radius: 12px; max-width: 800px; margin: 2rem auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                <h2 style="color: #2196f3; margin-bottom: 1.5rem; text-align: center;">
+                    ☁️ OneDrive 자동 저장 대안 방법들
+                </h2>
+                
+                <div style="display: grid; gap: 1.5rem;">
+                    <!-- 방법 1: 브라우저 기본 다운로드 + 수동 이동 -->
+                    <div style="background: #e8f5e8; padding: 1.5rem; border-radius: 8px; border-left: 4px solid #4caf50;">
+                        <h3 style="color: #2e7d32; margin-bottom: 1rem;">
+                            🎯 권장 방법: 다운로드 + 수동 이동
+                        </h3>
+                        <ul style="color: #333; line-height: 1.6; margin: 0; padding-left: 1.5rem;">
+                            <li><strong>장점:</strong> 간단하고 안전함, 모든 브라우저 지원</li>
+                            <li><strong>단점:</strong> 매번 수동으로 파일 이동 필요</li>
+                            <li><strong>추천도:</strong> ⭐⭐⭐⭐⭐ (현재 최선의 방법)</li>
+                        </ul>
+                    </div>
+
+                    <!-- 방법 2: PWA + File System Access API -->
+                    <div style="background: #e3f2fd; padding: 1.5rem; border-radius: 8px; border-left: 4px solid #2196f3;">
+                        <h3 style="color: #1976d2; margin-bottom: 1rem;">
+                            🔧 개선 방법: File System Access API (Chrome)
+                        </h3>
+                        <ul style="color: #333; line-height: 1.6; margin: 0; padding-left: 1.5rem;">
+                            <li><strong>장점:</strong> 한 번 설정하면 같은 위치에 저장</li>
+                            <li><strong>단점:</strong> Chrome/Edge만 지원, 여전히 수동 선택 필요</li>
+                            <li><strong>추천도:</strong> ⭐⭐⭐⭐ (Chrome 사용시 권장)</li>
+                        </ul>
+                    </div>
+
+                    <!-- 방법 3: 웹 기반 클라우드 솔루션 -->
+                    <div style="background: #fff3e0; padding: 1.5rem; border-radius: 8px; border-left: 4px solid #ff9800;">
+                        <h3 style="color: #f57c00; margin-bottom: 1rem;">
+                            ☁️ 웹 기반 솔루션들
+                        </h3>
+                        <div style="margin-bottom: 1rem;">
+                            <strong>A. GitHub Repository (무료)</strong>
+                            <ul style="color: #333; line-height: 1.6; margin: 0.5rem 0; padding-left: 1.5rem;">
+                                <li>API를 통해 자동 커밋/푸시 가능</li>
+                                <li>버전 관리와 백업이 자동으로 됨</li>
+                                <li>팀원들과 실시간 동기화</li>
+                                <li><strong>구현 난이도:</strong> 중간</li>
+                            </ul>
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <strong>B. Firebase Realtime Database (구글)</strong>
+                            <ul style="color: #333; line-height: 1.6; margin: 0.5rem 0; padding-left: 1.5rem;">
+                                <li>실시간 동기화 지원</li>
+                                <li>무료 할당량: 1GB 저장공간</li>
+                                <li>모바일 앱도 쉽게 연동 가능</li>
+                                <li><strong>구현 난이도:</strong> 쉬움</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <strong>C. Supabase (오픈소스)</strong>
+                            <ul style="color: #333; line-height: 1.6; margin: 0.5rem 0; padding-left: 1.5rem;">
+                                <li>PostgreSQL 기반 무료 데이터베이스</li>
+                                <li>실시간 구독 지원</li>
+                                <li>무료 할당량: 500MB + 2GB 대역폭</li>
+                                <li><strong>구현 난이도:</strong> 쉬움</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- 방법 4: 전용 앱 개발 -->
+                    <div style="background: #f3e5f5; padding: 1.5rem; border-radius: 8px; border-left: 4px solid #9c27b0;">
+                        <h3 style="color: #7b1fa2; margin-bottom: 1rem;">
+                            📱 전용 앱 개발 (장기적 해결책)
+                        </h3>
+                        <ul style="color: #333; line-height: 1.6; margin: 0; padding-left: 1.5rem;">
+                            <li><strong>Electron 앱:</strong> 웹 기술로 데스크톱 앱 제작</li>
+                            <li><strong>모바일 앱:</strong> React Native, Flutter 등</li>
+                            <li><strong>OneDrive API 직접 연동</strong> 가능</li>
+                            <li><strong>추천도:</strong> ⭐⭐⭐ (개발 비용 높음)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div style="background: #ffebee; padding: 1.5rem; border-radius: 8px; margin-top: 1.5rem;">
+                    <h3 style="color: #c62828; margin-bottom: 1rem;">⚠️ 브라우저 보안 제한 사항</h3>
+                    <ul style="color: #333; line-height: 1.6; margin: 0; padding-left: 1.5rem;">
+                        <li>웹 앱은 사용자 동의 없이 파일을 저장할 수 없음</li>
+                        <li>특정 폴더에 직접 접근하는 것은 불가능</li>
+                        <li>이는 사용자 보안을 위한 필수 제한사항</li>
+                    </ul>
+                </div>
+
+                <div style="text-align: center; margin-top: 2rem;">
+                    <button onclick="this.parentElement.parentElement.remove()" 
+                            style="padding: 0.8rem 2rem; background: #2196f3; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; margin-right: 1rem;">
+                        💡 이해했습니다
+                    </button>
+                    <button onclick="app.showGitHubImplementation()" 
+                            style="padding: 0.8rem 2rem; background: #4caf50; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer;">
+                        🚀 GitHub 연동 방법 보기
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; overflow-y: auto; display: flex; align-items: center; justify-content: center;';
+        overlay.innerHTML = alternativesHTML;
+        
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.remove();
+        });
+        
+        document.body.appendChild(overlay);
+    }
+
+    // GitHub 자동 저장 구현 방법 안내
+    showGitHubImplementation() {
+        const githubHTML = `
+            <div style="background: white; padding: 2rem; border-radius: 12px; max-width: 900px; margin: 2rem auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                <h2 style="color: #24292e; margin-bottom: 1.5rem; text-align: center;">
+                    <i class="fab fa-github"></i> GitHub 자동 저장 구현 방법
+                </h2>
+                
+                <div style="background: #f6f8fa; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <h3 style="color: #24292e; margin-bottom: 1rem;">📋 필요한 설정</h3>
+                    <ol style="color: #333; line-height: 1.8; margin: 0; padding-left: 1.5rem;">
+                        <li><strong>GitHub Repository 생성</strong> (Private 권장)</li>
+                        <li><strong>Personal Access Token 발급</strong></li>
+                        <li><strong>JavaScript 코드 추가</strong></li>
+                        <li><strong>팀원들에게 권한 부여</strong></li>
+                    </ol>
+                </div>
+
+                <div style="background: #fff5b4; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <h3 style="color: #7c4d00; margin-bottom: 1rem;">💡 GitHub API 연동 코드 예시</h3>
+                    <pre style="background: #f1f3f4; padding: 1rem; border-radius: 4px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 0.85rem; color: #333;"><code>// GitHub에 파일 저장하는 함수
+async function saveToGitHub(data) {
+    const token = 'ghp_your_personal_access_token';
+    const repo = 'your-username/order-system';
+    const path = 'order_list.json';
+    
+    try {
+        // 기존 파일 정보 가져오기 (sha 필요)
+        const getResponse = await fetch(\`https://api.github.com/repos/\${repo}/contents/\${path}\`, {
+            headers: { 'Authorization': \`token \${token}\` }
+        });
+        
+        const fileInfo = getResponse.ok ? await getResponse.json() : null;
+        
+        // 파일 업데이트 또는 생성
+        const response = await fetch(\`https://api.github.com/repos/\${repo}/contents/\${path}\`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': \`token \${token}\`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: \`주문 데이터 업데이트 - \${new Date().toLocaleString()}\`,
+                content: btoa(JSON.stringify(data, null, 2)),
+                sha: fileInfo?.sha // 업데이트시 필요
+            })
+        });
+        
+        if (response.ok) {
+            console.log('GitHub에 성공적으로 저장됨');
+            return true;
+        } else {
+            throw new Error('GitHub 저장 실패');
+        }
+    } catch (error) {
+        console.error('GitHub 저장 오류:', error);
+        return false;
+    }
+}</code></pre>
+                </div>
+
+                <div style="background: #e3f2fd; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <h3 style="color: #1976d2; margin-bottom: 1rem;">🔧 구현 단계</h3>
+                    <div style="display: grid; gap: 1rem;">
+                        <div style="padding: 1rem; background: white; border-radius: 4px; border-left: 3px solid #2196f3;">
+                            <strong>1단계: GitHub Repository 설정</strong>
+                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem; color: #666;">
+                                <li>새 Private Repository 생성</li>
+                                <li>팀원들을 Collaborator로 추가</li>
+                            </ul>
+                        </div>
+                        <div style="padding: 1rem; background: white; border-radius: 4px; border-left: 3px solid #4caf50;">
+                            <strong>2단계: Personal Access Token 생성</strong>
+                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem; color: #666;">
+                                <li>GitHub Settings → Developer settings</li>
+                                <li>Personal access tokens → Generate new token</li>
+                                <li>repo 권한 체크하여 생성</li>
+                            </ul>
+                        </div>
+                        <div style="padding: 1rem; background: white; border-radius: 4px; border-left: 3px solid #ff9800;">
+                            <strong>3단계: 앱에 GitHub 연동 코드 추가</strong>
+                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem; color: #666;">
+                                <li>위의 코드를 app.js에 추가</li>
+                                <li>저장 버튼 클릭시 GitHub API 호출</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: #f3e5f5; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <h3 style="color: #7b1fa2; margin-bottom: 1rem;">📊 비용 및 제한</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                        <div>
+                            <strong style="color: #4caf50;">무료 계정</strong>
+                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem; color: #666; font-size: 0.9rem;">
+                                <li>Private repo: 무제한</li>
+                                <li>API 호출: 5,000회/시간</li>
+                                <li>저장 공간: 1GB</li>
+                                <li>충분히 사용 가능</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <strong style="color: #2196f3;">Pro 계정 ($4/월)</strong>
+                            <ul style="margin: 0.5rem 0; padding-left: 1.5rem; color: #666; font-size: 0.9rem;">
+                                <li>API 호출: 제한 완화</li>
+                                <li>저장 공간: 추가 용량</li>
+                                <li>고급 기능 사용 가능</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 2rem;">
+                    <button onclick="this.parentElement.parentElement.remove()" 
+                            style="padding: 0.8rem 2rem; background: #6c757d; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; margin-right: 1rem;">
+                        ← 뒤로
+                    </button>
+                    <button onclick="app.implementGitHubSave()" 
+                            style="padding: 0.8rem 2rem; background: #24292e; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer;">
+                        🚀 GitHub 연동 활성화
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // 기존 오버레이 제거 후 새 오버레이 생성
+        const existingOverlay = document.querySelector('.github-overlay');
+        if (existingOverlay) existingOverlay.remove();
+        
+        const overlay = document.createElement('div');
+        overlay.className = 'github-overlay';
+        overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10001; overflow-y: auto; display: flex; align-items: center; justify-content: center;';
+        overlay.innerHTML = githubHTML;
+        
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.remove();
+        });
+        
+        document.body.appendChild(overlay);
+    }
+
+    // GitHub 연동 활성화 (실제 구현을 위한 준비)
+    async implementGitHubSave() {
+        // 여기에 실제 GitHub API 연동 코드를 구현할 수 있습니다
+        alert('GitHub 연동 기능은 Personal Access Token 설정이 필요합니다.\n보안상 직접 구현이 필요한 부분입니다.');
+        
+        // 실제 구현시에는 환경 설정 창을 표시하여 
+        // 사용자가 토큰과 저장소 정보를 입력하도록 할 수 있습니다
     }
 }
 
