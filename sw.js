@@ -51,6 +51,11 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // chrome-extension, moz-extension 등 지원되지 않는 스킴 필터링
+  if (!event.request.url.startsWith('http://') && !event.request.url.startsWith('https://')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then(response => {
@@ -71,7 +76,13 @@ self.addEventListener('fetch', event => {
             const responseToCache = response.clone();
             caches.open(CACHE_NAME)
               .then(cache => {
-                cache.put(event.request, responseToCache);
+                // URL 스킴 재확인 후 캐시에 저장
+                if (event.request.url.startsWith('http://') || event.request.url.startsWith('https://')) {
+                  cache.put(event.request, responseToCache);
+                }
+              })
+              .catch(error => {
+                console.warn('캐시 저장 실패:', error);
               });
 
             return response;

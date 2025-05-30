@@ -575,15 +575,36 @@ class OrderApp {
 
     // 이벤트 리스너 설정
     setupEventListeners() {
-        // 네비게이션
-        document.querySelectorAll('.nav-btn').forEach(btn => {
-            this.addEventListenerWithTracking(btn, 'click', () => this.switchScreen(btn.dataset.screen));
+        // 네비게이션 - 더 안정적인 이벤트 바인딩
+        const navButtons = document.querySelectorAll('.nav-btn');
+        console.log(`네비게이션 버튼 ${navButtons.length}개 발견`);
+        
+        navButtons.forEach((btn, index) => {
+            const screenName = btn.dataset.screen;
+            console.log(`네비게이션 버튼 ${index + 1}: ${screenName}`);
+            
+            // 기존 이벤트 리스너 제거 (중복 방지)
+            btn.removeEventListener('click', btn._switchScreenHandler);
+            
+            // 새 이벤트 리스너 추가
+            btn._switchScreenHandler = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log(`네비게이션 버튼 클릭됨: ${screenName}`);
+                this.switchScreen(screenName);
+            };
+            
+            btn.addEventListener('click', btn._switchScreenHandler);
+            this.addEventListenerWithTracking(btn, 'click', btn._switchScreenHandler);
         });
 
         // 설정 버튼
         const settingsBtn = document.getElementById('settingsBtn');
         if (settingsBtn) {
-            this.addEventListenerWithTracking(settingsBtn, 'click', () => this.switchScreen('settings'));
+            this.addEventListenerWithTracking(settingsBtn, 'click', () => {
+                console.log('설정 버튼 클릭됨');
+                this.switchScreen('settings');
+            });
         }
 
         // 주문 입력 폼 - 디바운싱 적용
@@ -705,50 +726,77 @@ class OrderApp {
 
         // 페이지 언로드 시 정리
         window.addEventListener('beforeunload', () => this.cleanup());
+        
+        console.log('✅ 모든 이벤트 리스너 설정 완료');
     }
 
     // 화면 전환
     switchScreen(screenName) {
         console.log(`화면 전환 시도: ${screenName}`);
         
-        // 모든 화면 숨기기
-        document.querySelectorAll('.screen').forEach(screen => {
-            screen.classList.remove('active');
-        });
+        try {
+            // 모든 화면 숨기기
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+                console.log(`화면 비활성화: ${screen.id}`);
+            });
 
-        // 모든 네비게이션 버튼 비활성화
-        document.querySelectorAll('.nav-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
+            // 모든 네비게이션 버튼 비활성화
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
 
-        // 선택된 화면 표시
-        const targetScreen = document.getElementById(screenName);
-        if (targetScreen) {
-            targetScreen.classList.add('active');
-            console.log(`화면 활성화됨: ${screenName}`);
-        } else {
-            console.error(`화면을 찾을 수 없습니다: ${screenName}`);
-            return;
-        }
-
-        // 네비게이션 버튼 활성화 (설정 화면 제외)
-        if (screenName !== 'settings') {
-            const navBtn = document.querySelector(`[data-screen="${screenName}"]`);
-            if (navBtn) {
-                navBtn.classList.add('active');
-                console.log(`네비게이션 버튼 활성화: ${screenName}`);
+            // 선택된 화면 표시
+            const targetScreen = document.getElementById(screenName);
+            if (targetScreen) {
+                targetScreen.classList.add('active');
+                console.log(`화면 활성화됨: ${screenName}`);
+                
+                // 화면 표시 후 약간의 지연을 두고 스크롤 위치 조정
+                setTimeout(() => {
+                    targetScreen.scrollTop = 0;
+                }, 100);
             } else {
-                console.warn(`네비게이션 버튼을 찾을 수 없습니다: ${screenName}`);
+                console.error(`화면을 찾을 수 없습니다: ${screenName}`);
+                this.showNotification(`화면을 찾을 수 없습니다: ${screenName}`, 'error');
+                return;
             }
-        }
 
-        // 화면별 특별 처리
-        if (screenName === 'orderList') {
-            this.displayOrders();
-        } else if (screenName === 'orderEdit') {
-            this.displayEditOrders();
-        } else if (screenName === 'settings') {
-            this.updateSettings();
+            // 네비게이션 버튼 활성화 (설정 화면 제외)
+            if (screenName !== 'settings') {
+                const navBtn = document.querySelector(`[data-screen="${screenName}"]`);
+                if (navBtn) {
+                    navBtn.classList.add('active');
+                    console.log(`네비게이션 버튼 활성화: ${screenName}`);
+                } else {
+                    console.warn(`네비게이션 버튼을 찾을 수 없습니다: ${screenName}`);
+                }
+            }
+
+            // 화면별 특별 처리
+            if (screenName === 'orderList') {
+                console.log('주문 목록 화면 로딩...');
+                this.displayOrders();
+            } else if (screenName === 'orderEdit') {
+                console.log('주문 수정 화면 로딩...');
+                this.displayEditOrders();
+            } else if (screenName === 'settings') {
+                console.log('설정 화면 로딩...');
+                this.updateSettings();
+            } else if (screenName === 'orderForm') {
+                console.log('주문 입력 화면 로딩...');
+                // 폼 초기화 (필요시)
+                if (this.currentEditId) {
+                    this.resetForm();
+                    this.currentEditId = null;
+                }
+            }
+            
+            console.log(`화면 전환 완료: ${screenName}`);
+            
+        } catch (error) {
+            console.error('화면 전환 중 오류:', error);
+            this.showNotification('화면 전환 중 오류가 발생했습니다.', 'error');
         }
     }
 
@@ -1646,13 +1694,17 @@ class OrderApp {
                     <h4 style="color: #2e7d32; margin: 0 0 0.5rem 0;">🔥 Firebase 클라우드 저장</h4>
                     <p style="color: #333; margin: 0; font-size: 0.9rem;">✅ 연결됨 - 저장 버튼 클릭시 자동으로 클라우드에 저장됩니다</p>
                     <div style="margin-top: 1rem; display: grid; gap: 0.5rem;">
-                        <button onclick="app.showTeamSetupGuide()" 
+                        <button onclick="app.showTeamSetupCompleteGuide()" 
                                 style="padding: 0.5rem 1rem; background: #4caf50; color: white; border: none; border-radius: 4px; font-size: 0.9rem; cursor: pointer;">
-                            👥 팀원 설정 공유 방법
+                            🎉 팀 설정 완료 안내보기
                         </button>
                         <button onclick="app.exportFirebaseConfig()" 
                                 style="padding: 0.5rem 1rem; background: #2196f3; color: white; border: none; border-radius: 4px; font-size: 0.9rem; cursor: pointer;">
                             📤 설정 파일 내보내기
+                        </button>
+                        <button onclick="window.open('https://console.firebase.google.com/', '_blank')" 
+                                style="padding: 0.5rem 1rem; background: #ff6f00; color: white; border: none; border-radius: 4px; font-size: 0.9rem; cursor: pointer;">
+                            🚀 Firebase 콘솔 열기
                         </button>
                     </div>
                 `;
@@ -2414,6 +2466,164 @@ class OrderApp {
                 tipOverlay.remove();
             }
         }, 5000);
+    }
+
+    // 팀 설정 완료 안내 표시
+    showTeamSetupCompleteGuide() {
+        const setupCompleteHTML = `
+            <div style="background: white; padding: 2rem; border-radius: 12px; max-width: 900px; margin: 2rem auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                <h2 style="color: #4caf50; margin-bottom: 1.5rem; text-align: center;">
+                    🎉 Firebase 클라우드 저장 설정 완료!
+                </h2>
+                
+                <div style="background: #e8f5e8; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #4caf50;">
+                    <h3 style="color: #2e7d32; margin-bottom: 1rem;">✅ 현재 상태: 완벽 설정됨</h3>
+                    <ul style="color: #333; line-height: 1.8; margin: 0; padding-left: 1.5rem;">
+                        <li><strong>🚀 자동 클라우드 저장</strong> - 저장 버튼 클릭시 즉시 팀 전체 공유</li>
+                        <li><strong>🔄 실시간 동기화</strong> - 모든 영업사원 데이터가 자동으로 합쳐짐</li>
+                        <li><strong>📊 내근직 대시보드</strong> - Firebase 콘솔에서 실시간 확인 가능</li>
+                        <li><strong>💾 완벽한 백업</strong> - Google 클라우드에 안전 보관</li>
+                    </ul>
+                </div>
+
+                <div style="background: #e3f2fd; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #2196f3;">
+                    <h3 style="color: #1976d2; margin-bottom: 1rem;">👥 팀원 설정 방법 (2가지 옵션)</h3>
+                    
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="color: #1976d2; margin-bottom: 0.5rem;">옵션 1: 설정 파일 공유 (추천)</h4>
+                        <ol style="color: #333; line-height: 1.6; margin: 0; padding-left: 1.5rem;">
+                            <li>아래 "설정 파일 다운로드" 버튼 클릭</li>
+                            <li>다운로드된 firebase-config.json 파일을 카카오톡/이메일로 팀원에게 전송</li>
+                            <li>팀원은 해당 파일을 주문시스템 폴더에 저장</li>
+                            <li>완료! 팀원도 같은 데이터베이스 사용</li>
+                        </ol>
+                    </div>
+                    
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="color: #1976d2; margin-bottom: 0.5rem;">옵션 2: GitHub 업로드 (고급)</h4>
+                        <ol style="color: #333; line-height: 1.6; margin: 0; padding-left: 1.5rem;">
+                            <li>GitHub 저장소에 firebase-config.json 업로드</li>
+                            <li>팀원들이 자동으로 GitHub에서 설정 다운로드</li>
+                            <li>한 번 설정으로 모든 팀원 자동 연결</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div style="background: #fff3e0; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #ff9800;">
+                    <h3 style="color: #f57c00; margin-bottom: 1rem;">📊 주문 데이터 확인 및 다운로드</h3>
+                    <div style="color: #333; line-height: 1.6;">
+                        <p><strong>1. Firebase 콘솔에서 실시간 확인:</strong></p>
+                        <p style="margin-left: 1rem; color: #666;">• Firebase 콘솔 → Realtime Database → orders 폴더</p>
+                        <p style="margin-left: 1rem; color: #666;">• 모든 주문이 시간순으로 정렬되어 표시</p>
+                        <p style="margin-left: 1rem; color: #666;">• 실시간으로 새 주문 추가 확인 가능</p>
+                        
+                        <p><strong>2. 앱에서 파일 다운로드:</strong></p>
+                        <p style="margin-left: 1rem; color: #666;">• 설정 → 데이터 내보내기 버튼 클릭</p>
+                        <p style="margin-left: 1rem; color: #666;">• Excel/JSON 형태로 다운로드</p>
+                        
+                        <p><strong>3. Firebase 콘솔에서 전체 다운로드:</strong></p>
+                        <p style="margin-left: 1rem; color: #666;">• Database → Export JSON 클릭</p>
+                        <p style="margin-left: 1rem; color: #666;">• 모든 데이터를 JSON 파일로 다운로드</p>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <button onclick="app.exportFirebaseConfig()" 
+                            style="padding: 1rem; background: #4caf50; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 600;">
+                        📤 설정 파일 다운로드
+                    </button>
+                    <button onclick="window.open('https://console.firebase.google.com/', '_blank')" 
+                            style="padding: 1rem; background: #ff6f00; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 600;">
+                        🚀 Firebase 콘솔 열기
+                    </button>
+                    <button onclick="app.generateTeamQRCode()" 
+                            style="padding: 1rem; background: #2196f3; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 600;">
+                        📱 QR코드 생성
+                    </button>
+                </div>
+
+                <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <h3 style="color: #333; margin-bottom: 1rem;">💡 사용 팁</h3>
+                    <div style="color: #666; line-height: 1.6; font-size: 0.9rem;">
+                        <p>• <strong>실시간 확인:</strong> Firebase 콘솔을 북마크해두면 언제든 실시간 주문 현황 확인 가능</p>
+                        <p>• <strong>정기 백업:</strong> 월 1회 정도 Firebase 콘솔에서 전체 데이터 다운로드 권장</p>
+                        <p>• <strong>비용 관리:</strong> 무료 플랜(1GB)으로도 충분하며, 사용량은 Firebase 콘솔에서 확인</p>
+                        <p>• <strong>문제 해결:</strong> 팀원 연결 문제시 설정 파일 재전송으로 해결</p>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 2rem;">
+                    <button onclick="this.closest('div[style*=\"position: fixed\"]').remove()" 
+                            style="padding: 0.8rem 2rem; background: #2196f3; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; margin-right: 1rem;">
+                        ✅ 완료
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; overflow-y: auto; display: flex; align-items: center; justify-content: center;';
+        overlay.innerHTML = setupCompleteHTML;
+        
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.remove();
+        });
+        
+        document.body.appendChild(overlay);
+    }
+
+    // QR 코드 생성 (팀원 공유용)
+    generateTeamQRCode() {
+        if (!this.firebaseConfig) {
+            this.showNotification('⚠️ Firebase 설정이 없습니다.', 'warning');
+            return;
+        }
+
+        // 간단한 텍스트 기반 QR 코드 정보
+        const configText = JSON.stringify(this.firebaseConfig, null, 2);
+        const qrCodeHTML = `
+            <div style="background: white; padding: 2rem; border-radius: 12px; max-width: 500px; margin: 2rem auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                <h2 style="color: #2196f3; margin-bottom: 1.5rem; text-align: center;">📱 팀원 공유용 정보</h2>
+                
+                <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <h3 style="color: #333; margin-bottom: 0.5rem;">🔗 GitHub 저장소 URL</h3>
+                    <p style="color: #666; font-size: 0.9rem; word-break: break-all; margin: 0;">
+                        https://github.com/SugarFairyTR/tr-order-system
+                    </p>
+                </div>
+
+                <div style="background: #e3f2fd; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <h3 style="color: #1976d2; margin-bottom: 0.5rem;">📋 팀원 설정 방법</h3>
+                    <ol style="color: #333; font-size: 0.9rem; line-height: 1.6; margin: 0; padding-left: 1.5rem;">
+                        <li>위 GitHub 저장소 접속</li>
+                        <li>Code → Download ZIP 클릭</li>
+                        <li>압축 해제 후 firebase-config.json 파일 확인</li>
+                        <li>주문시스템 실행시 자동 연결</li>
+                    </ol>
+                </div>
+
+                <div style="text-align: center; margin-top: 1.5rem;">
+                    <button onclick="navigator.clipboard.writeText('https://github.com/SugarFairyTR/tr-order-system').then(() => alert('✅ URL이 복사되었습니다!'))" 
+                            style="padding: 0.8rem 1.5rem; background: #4caf50; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; margin-right: 1rem;">
+                        📋 URL 복사
+                    </button>
+                    <button onclick="this.parentElement.parentElement.parentElement.remove()" 
+                            style="padding: 0.8rem 1.5rem; background: #6c757d; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer;">
+                        닫기
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10001; overflow-y: auto; display: flex; align-items: center; justify-content: center;';
+        overlay.innerHTML = qrCodeHTML;
+        
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.remove();
+        });
+        
+        document.body.appendChild(overlay);
     }
 }
 
