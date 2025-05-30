@@ -634,7 +634,6 @@ class OrderApp {
         if (quantityInput) {
             this.addEventListenerWithTracking(quantityInput, 'input', (e) => {
                 this.formatQuantity(e);
-                this.debounce('calculateTotal', () => this.calculateTotal(), 200);
             });
         }
 
@@ -642,7 +641,6 @@ class OrderApp {
         if (priceInput) {
             this.addEventListenerWithTracking(priceInput, 'input', (e) => {
                 this.formatPrice(e);
-                this.debounce('calculateTotal', () => this.calculateTotal(), 200);
             });
         }
 
@@ -940,20 +938,96 @@ class OrderApp {
 
     // 수량 포맷팅 (천단위 콤마)
     formatQuantity(event) {
-        let value = event.target.value.replace(/[^\d]/g, '');
-        if (value) {
-            value = parseInt(value).toLocaleString();
+        const input = event.target;
+        const cursorPosition = input.selectionStart;
+        const originalValue = input.value;
+        
+        // 숫자만 추출
+        let value = originalValue.replace(/[^\d]/g, '');
+        
+        if (value === '') {
+            input.value = '';
+            return;
         }
-        event.target.value = value;
+        
+        // 숫자를 정수로 변환하고 콤마 추가
+        const numericValue = parseInt(value, 10);
+        if (isNaN(numericValue)) {
+            input.value = '';
+            return;
+        }
+        
+        const formattedValue = numericValue.toLocaleString();
+        
+        // 값이 실제로 변경된 경우에만 업데이트
+        if (originalValue !== formattedValue) {
+            input.value = formattedValue;
+            
+            // 커서 위치 계산 및 복원
+            const oldLength = originalValue.length;
+            const newLength = formattedValue.length;
+            const lengthDiff = newLength - oldLength;
+            let newCursorPosition = cursorPosition + lengthDiff;
+            
+            // 커서가 범위를 벗어나지 않도록 조정
+            newCursorPosition = Math.max(0, Math.min(newCursorPosition, formattedValue.length));
+            
+            // 커서 위치 복원
+            setTimeout(() => {
+                input.setSelectionRange(newCursorPosition, newCursorPosition);
+            }, 0);
+        }
+        
+        // 총액 계산 호출
+        this.calculateTotal();
     }
 
     // 가격 포맷팅 (천단위 콤마)
     formatPrice(event) {
-        let value = event.target.value.replace(/[^\d]/g, '');
-        if (value) {
-            value = parseInt(value).toLocaleString();
+        const input = event.target;
+        const cursorPosition = input.selectionStart;
+        const originalValue = input.value;
+        
+        // 숫자만 추출
+        let value = originalValue.replace(/[^\d]/g, '');
+        
+        if (value === '') {
+            input.value = '';
+            this.calculateTotal();
+            return;
         }
-        event.target.value = value;
+        
+        // 숫자를 정수로 변환하고 콤마 추가
+        const numericValue = parseInt(value, 10);
+        if (isNaN(numericValue)) {
+            input.value = '';
+            this.calculateTotal();
+            return;
+        }
+        
+        const formattedValue = numericValue.toLocaleString();
+        
+        // 값이 실제로 변경된 경우에만 업데이트
+        if (originalValue !== formattedValue) {
+            input.value = formattedValue;
+            
+            // 커서 위치 계산 및 복원
+            const oldLength = originalValue.length;
+            const newLength = formattedValue.length;
+            const lengthDiff = newLength - oldLength;
+            let newCursorPosition = cursorPosition + lengthDiff;
+            
+            // 커서가 범위를 벗어나지 않도록 조정
+            newCursorPosition = Math.max(0, Math.min(newCursorPosition, formattedValue.length));
+            
+            // 커서 위치 복원
+            setTimeout(() => {
+                input.setSelectionRange(newCursorPosition, newCursorPosition);
+            }, 0);
+        }
+        
+        // 총액 계산 호출
+        this.calculateTotal();
     }
 
     // 총액 계산
