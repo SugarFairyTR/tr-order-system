@@ -3,7 +3,7 @@
     "김정진": {
       "pin": "9736",
       "name": "김정진",
-      "role": "대표이사",
+      "role": "대표이사", 
       "department": "주식회사 티알코리아",
       "email": "kim@trkorea.kr",
       "phone": "010-2066-2455",
@@ -11,11 +11,11 @@
       "last_login": null
     },
     "박경범": {
-      "pin": "5678",
-      "name": "박경범", 
+      "pin": "5678", 
+      "name": "박경범",
       "role": "상무",
       "department": "구매팀",
-      "email": "parkkp00@gmail.com",
+      "email": "parkkp00@gmail.com", 
       "phone": "010-2345-6789",
       "created_at": "2025-05-29",
       "last_login": null
@@ -23,7 +23,7 @@
     "이선화": {
       "pin": "0608",
       "name": "이선화",
-      "role": "이사", 
+      "role": "이사",
       "department": "영업팀",
       "email": "tn@tenafly.co.kr",
       "phone": "010-5393-5993",
@@ -32,10 +32,30 @@
     },
     "신준호": {
       "pin": "3444",
-      "name": "신준호",
-      "role": "과장장",
-      "department": "영업팀", 
+      "name": "신준호", 
+      "role": "과장",
+      "department": "영업팀",
       "email": "jh@tenafly.co.kr",
+      "phone": "010-4567-8901",
+      "created_at": "2025-05-29",
+      "last_login": null
+    },
+    "김다해": {
+      "pin": "9797",
+      "name": "김다해",
+      "role": "대리",
+      "department": "영업팀",
+      "email": "dh@trkorea.kr",
+      "phone": "010-4567-8901", 
+      "created_at": "2025-05-29",
+      "last_login": null
+    },
+    "송현지": {
+      "pin": "1234",
+      "name": "송현지",
+      "role": "사원",
+      "department": "영업팀",
+      "email": "hj@trkorea.kr",
       "phone": "010-4567-8901",
       "created_at": "2025-05-29",
       "last_login": null
@@ -56,4 +76,4 @@
     "failed_attempts": {}
   },
   "last_updated": "2025-05-29T00:00:00Z"
-} 
+}

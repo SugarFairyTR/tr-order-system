@@ -125,11 +125,12 @@ body, p, span, div, label, input, select, button, textarea, h1, h2, h3, h4, h5, 
     font-size: 1rem;
     font-weight: 700 !important;
     transition: all 0.3s;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
     background: #ffffff !important;
     color: #333333 !important;
     -webkit-text-fill-color: #333333 !important;
-    -webkit-appearance: none;
-    -moz-appearance: textfield;
 }
 
 .form-group input:focus {
@@ -171,6 +172,7 @@ input#price:focus {
     font-weight: 700 !important;
     transition: all 0.3s;
     appearance: none;
+    -webkit-appearance: none;
     background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"><path d="M7 10l5 5 5-5z"/></svg>') no-repeat right 10px center;
     background-size: 20px;
     background-color: #fff !important;
