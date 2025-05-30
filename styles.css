@@ -11,6 +11,12 @@ body {
     min-height: 100vh;
     color: #333;
     line-height: 1.6;
+    font-weight: 600;
+}
+
+/* 모든 텍스트 요소를 볼드체로 통일 */
+body, p, span, div, label, input, select, button, textarea, h1, h2, h3, h4, h5, h6, li, td, th, a {
+    font-weight: 600 !important;
 }
 
 .app-container {
@@ -117,6 +123,7 @@ body {
     border: 2px solid #e0e0e0;
     border-radius: 10px;
     font-size: 1rem;
+    font-weight: 700 !important;
     transition: all 0.3s;
     background: #ffffff !important;
     color: #333333 !important;
@@ -140,7 +147,7 @@ input#price {
     background: #ffffff !important;
     color: #000000 !important;
     -webkit-text-fill-color: #000000 !important;
-    font-weight: 600 !important;
+    font-weight: 800 !important;
     font-size: 1.1rem !important;
     border: 2px solid #4caf50 !important;
 }
@@ -161,6 +168,7 @@ input#price:focus {
     border: 2px solid #e0e0e0;
     border-radius: 10px;
     font-size: 1rem;
+    font-weight: 700 !important;
     transition: all 0.3s;
     appearance: none;
     background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"><path d="M7 10l5 5 5-5z"/></svg>') no-repeat right 10px center;
@@ -175,6 +183,14 @@ input#price:focus {
     background-color: #ffffff !important;
     color: #333333 !important;
     box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+/* 셀렉트 박스 옵션들도 볼드체로 */
+.form-group select option {
+    font-weight: 700 !important;
+    color: #333333 !important;
+    background-color: #ffffff !important;
+    padding: 0.5rem !important;
 }
 
 /* 총액 표시 */
