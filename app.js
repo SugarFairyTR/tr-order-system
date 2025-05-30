@@ -65,14 +65,30 @@ class OrderApp {
     // Firebase 설정 로드 (GitHub 공유 및 여러 경로 지원)
     async loadFirebaseConfig() {
         try {
+            console.log('🔥 Firebase 설정 로드 시작...');
+            
+            // 직접 설정 (firebase-config.json 파일이 없을 때 사용)
+            const directConfig = {
+                "apiKey": "AIzaSyCEvWLIkc1JmDbXK08be7miI7F3hd1LmOk",
+                "authDomain": "tr-order-system.firebaseapp.com",
+                "databaseURL": "https://tr-order-system-default-rtdb.asia-southeast1.firebasedatabase.app/",
+                "projectId": "tr-order-system",
+                "storageBucket": "tr-order-system.firebasestorage.app",
+                "messagingSenderId": "808479613989",
+                "appId": "1:808479613989:web:9ac188b732019adf8c8bcc",
+                "measurementId": "G-RMQBCZ4PGM"
+            };
+            
             // 1순위: 로컬 파일
             let response = await fetch('./firebase-config.json');
+            console.log('로컬 파일 응답:', response.status, response.ok);
             
             // 2순위: GitHub Raw 파일 (팀 공유용)
             if (!response.ok) {
                 const githubRawUrl = 'https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/firebase-config.json';
                 console.log('로컬 설정 파일이 없습니다. GitHub에서 로드를 시도합니다...');
                 response = await fetch(githubRawUrl);
+                console.log('GitHub 파일 응답:', response.status, response.ok);
             }
             
             // 3순위: 구글 드라이브 공유 링크 (선택사항)
@@ -82,11 +98,15 @@ class OrderApp {
                 const driveUrl = `https://drive.google.com/uc?id=${driveFileId}&export=download`;
                 console.log('GitHub에서도 로드 실패. Google Drive에서 시도합니다...');
                 response = await fetch(driveUrl);
+                console.log('Google Drive 파일 응답:', response.status, response.ok);
             }
             
             if (response.ok) {
-                this.firebaseConfig = await response.json();
-                console.log('Firebase 설정 로드 완료');
+                const configText = await response.text();
+                console.log('🔥 설정 파일 내용:', configText);
+                
+                this.firebaseConfig = JSON.parse(configText);
+                console.log('🔥 Firebase 설정 파싱 완료:', this.firebaseConfig);
                 
                 // 설정 출처 표시
                 if (response.url.includes('github')) {
@@ -97,10 +117,25 @@ class OrderApp {
                     console.log('💾 로컬 파일에서 설정을 로드했습니다.');
                 }
             } else {
-                throw new Error('모든 경로에서 설정 파일 로드 실패');
+                // 4순위: 직접 설정 사용
+                console.log('🔥 파일 로드 실패. 직접 설정을 사용합니다.');
+                this.firebaseConfig = directConfig;
+                console.log('🔥 Firebase 직접 설정 완료:', this.firebaseConfig);
             }
         } catch (error) {
-            console.log('Firebase 설정 파일이 없습니다. 설정이 필요합니다.');
+            console.error('❌ Firebase 설정 로드 실패:', error);
+            // 에러 발생시에도 직접 설정 사용
+            console.log('🔥 에러 발생. 직접 설정을 사용합니다.');
+            this.firebaseConfig = {
+                "apiKey": "AIzaSyCEvWLIkc1JmDbXK08be7miI7F3hd1LmOk",
+                "authDomain": "tr-order-system.firebaseapp.com", 
+                "databaseURL": "https://tr-order-system-default-rtdb.asia-southeast1.firebasedatabase.app/",
+                "projectId": "tr-order-system",
+                "storageBucket": "tr-order-system.firebasestorage.app",
+                "messagingSenderId": "808479613989",
+                "appId": "1:808479613989:web:9ac188b732019adf8c8bcc",
+                "measurementId": "G-RMQBCZ4PGM"
+            };
             console.log('🔧 설정 방법: 설정 → Firebase 클라우드 저장 설정');
         }
     }
