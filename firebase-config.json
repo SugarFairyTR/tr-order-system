@@ -1,0 +1,10 @@
+{
+    "apiKey": "AIzaSyCEvWLIkc1JmDbXK08be7miI7F3hd1LmOk",
+    "authDomain": "tr-order-system.firebaseapp.com", 
+    "databaseURL": "https://tr-order-system-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    "projectId": "tr-order-system",
+    "storageBucket": "tr-order-system.firebasestorage.app",
+    "messagingSenderId": "808479613989",
+    "appId": "1:808479613989:web:9ac188b732019adf8c8bcc",
+    "measurementId": "G-RMQBCZ4PGM"
+  }
