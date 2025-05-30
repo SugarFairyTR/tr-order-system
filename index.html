@@ -139,13 +139,31 @@
                         <!-- 수량 입력 -->
                         <div class="form-group">
                             <label for="quantity">수량 (KG)</label>
-                            <input type="text" id="quantity" required placeholder="수량 입력">
+                            <input type="text" 
+                                   id="quantity" 
+                                   class="number-format-input" 
+                                   data-format="number" 
+                                   inputmode="numeric" 
+                                   pattern="[0-9,]*" 
+                                   autocomplete="off" 
+                                   spellcheck="false"
+                                   required 
+                                   placeholder="수량 입력">
                         </div>
 
                         <!-- 단가 입력 -->
                         <div class="form-group">
                             <label for="price">단가 (공급가액)</label>
-                            <input type="text" id="price" required placeholder="단가 입력">
+                            <input type="text" 
+                                   id="price" 
+                                   class="number-format-input" 
+                                   data-format="number" 
+                                   inputmode="numeric" 
+                                   pattern="[0-9,]*" 
+                                   autocomplete="off" 
+                                   spellcheck="false"
+                                   required 
+                                   placeholder="단가 입력">
                         </div>
 
                         <!-- 도착일 선택 -->

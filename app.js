@@ -278,6 +278,9 @@ class OrderApp {
         // PWA 설치 처리
         this.setupPWA();
         
+        // 수량/가격 입력 필드 강제 설정
+        this.enforceNumberInputSettings();
+        
         // 메인 앱 표시
         this.showMainApp();
     }
@@ -629,19 +632,59 @@ class OrderApp {
             });
         }
 
-        // 수량 입력 - 천단위 콤마 자동 추가
+        // 수량 입력 - 천단위 콤마 자동 추가 (강화된 버전)
         const quantityInput = document.getElementById('quantity');
         if (quantityInput) {
-            this.addEventListenerWithTracking(quantityInput, 'input', (e) => {
-                this.formatQuantity(e);
-            });
+            // 기존 이벤트 리스너 제거
+            quantityInput.removeEventListener('input', quantityInput._formatHandler);
+            quantityInput.removeEventListener('blur', quantityInput._blurHandler);
+            quantityInput.removeEventListener('focus', quantityInput._focusHandler);
+            
+            // 새 이벤트 핸들러 생성
+            quantityInput._formatHandler = (e) => this.formatQuantity(e);
+            quantityInput._blurHandler = (e) => this.formatQuantity(e);
+            quantityInput._focusHandler = (e) => {
+                // 포커스시 input type을 text로 강제 설정
+                e.target.type = 'text';
+                e.target.inputMode = 'numeric';
+            };
+            
+            // 이벤트 리스너 등록
+            quantityInput.addEventListener('input', quantityInput._formatHandler);
+            quantityInput.addEventListener('blur', quantityInput._blurHandler);
+            quantityInput.addEventListener('focus', quantityInput._focusHandler);
+            
+            // 초기 설정 강제 적용
+            quantityInput.type = 'text';
+            quantityInput.inputMode = 'numeric';
+            quantityInput.autocomplete = 'off';
         }
 
         const priceInput = document.getElementById('price');
         if (priceInput) {
-            this.addEventListenerWithTracking(priceInput, 'input', (e) => {
-                this.formatPrice(e);
-            });
+            // 기존 이벤트 리스너 제거
+            priceInput.removeEventListener('input', priceInput._formatHandler);
+            priceInput.removeEventListener('blur', priceInput._blurHandler);
+            priceInput.removeEventListener('focus', priceInput._focusHandler);
+            
+            // 새 이벤트 핸들러 생성
+            priceInput._formatHandler = (e) => this.formatPrice(e);
+            priceInput._blurHandler = (e) => this.formatPrice(e);
+            priceInput._focusHandler = (e) => {
+                // 포커스시 input type을 text로 강제 설정
+                e.target.type = 'text';
+                e.target.inputMode = 'numeric';
+            };
+            
+            // 이벤트 리스너 등록
+            priceInput.addEventListener('input', priceInput._formatHandler);
+            priceInput.addEventListener('blur', priceInput._blurHandler);
+            priceInput.addEventListener('focus', priceInput._focusHandler);
+            
+            // 초기 설정 강제 적용
+            priceInput.type = 'text';
+            priceInput.inputMode = 'numeric';
+            priceInput.autocomplete = 'off';
         }
 
         // 버튼 이벤트
@@ -936,99 +979,91 @@ class OrderApp {
         }
     }
 
-    // 수량 포맷팅 (천단위 콤마)
+    // 수량 포맷팅 (천단위 콤마) - 강화된 안정적 버전
     formatQuantity(event) {
         const input = event.target;
-        const cursorPosition = input.selectionStart;
-        const originalValue = input.value;
+        let currentValue = input.value;
         
-        // 숫자만 추출
-        let value = originalValue.replace(/[^\d]/g, '');
-        
-        if (value === '') {
-            input.value = '';
+        // 입력값이 비어있으면 그대로 두고 총액만 계산
+        if (!currentValue || currentValue.trim() === '') {
             this.calculateTotal();
             return;
         }
         
-        // 숫자를 정수로 변환하고 콤마 추가
-        const numericValue = parseInt(value, 10);
-        if (isNaN(numericValue)) {
-            input.value = '';
-            this.calculateTotal();
-            return;
+        try {
+            // 숫자가 아닌 문자 모두 제거 (콤마, 공백 등)
+            let numbersOnly = currentValue.replace(/[^\d]/g, '');
+            
+            // 빈 문자열이면 그대로 유지
+            if (numbersOnly === '') {
+                input.value = '';
+                this.calculateTotal();
+                return;
+            }
+            
+            // 숫자로 변환
+            let numericValue = parseInt(numbersOnly, 10);
+            
+            // 유효한 숫자인지 확인
+            if (!isNaN(numericValue) && numericValue > 0) {
+                // 천단위 콤마 추가
+                let formattedValue = numericValue.toLocaleString('ko-KR');
+                
+                // 값이 실제로 변경된 경우에만 업데이트 (무한 루프 방지)
+                if (input.value !== formattedValue) {
+                    input.value = formattedValue;
+                }
+            }
+        } catch (error) {
+            console.error('수량 포맷팅 오류:', error);
+            // 오류 발생시 원래 값 유지
         }
         
-        const formattedValue = numericValue.toLocaleString();
-        
-        // 값이 실제로 변경된 경우에만 업데이트
-        if (originalValue !== formattedValue) {
-            input.value = formattedValue;
-            
-            // 커서 위치 계산 및 복원
-            const oldLength = originalValue.length;
-            const newLength = formattedValue.length;
-            const lengthDiff = newLength - oldLength;
-            let newCursorPosition = cursorPosition + lengthDiff;
-            
-            // 커서가 범위를 벗어나지 않도록 조정
-            newCursorPosition = Math.max(0, Math.min(newCursorPosition, formattedValue.length));
-            
-            // 커서 위치 복원
-            setTimeout(() => {
-                input.setSelectionRange(newCursorPosition, newCursorPosition);
-            }, 0);
-        }
-        
-        // 총액 계산 호출
+        // 총액 계산
         this.calculateTotal();
     }
 
-    // 가격 포맷팅 (천단위 콤마)
+    // 가격 포맷팅 (천단위 콤마) - 강화된 안정적 버전
     formatPrice(event) {
         const input = event.target;
-        const cursorPosition = input.selectionStart;
-        const originalValue = input.value;
+        let currentValue = input.value;
         
-        // 숫자만 추출
-        let value = originalValue.replace(/[^\d]/g, '');
-        
-        if (value === '') {
-            input.value = '';
+        // 입력값이 비어있으면 그대로 두고 총액만 계산
+        if (!currentValue || currentValue.trim() === '') {
             this.calculateTotal();
             return;
         }
         
-        // 숫자를 정수로 변환하고 콤마 추가
-        const numericValue = parseInt(value, 10);
-        if (isNaN(numericValue)) {
-            input.value = '';
-            this.calculateTotal();
-            return;
+        try {
+            // 숫자가 아닌 문자 모두 제거 (콤마, 공백 등)
+            let numbersOnly = currentValue.replace(/[^\d]/g, '');
+            
+            // 빈 문자열이면 그대로 유지
+            if (numbersOnly === '') {
+                input.value = '';
+                this.calculateTotal();
+                return;
+            }
+            
+            // 숫자로 변환
+            let numericValue = parseInt(numbersOnly, 10);
+            
+            // 유효한 숫자인지 확인
+            if (!isNaN(numericValue) && numericValue > 0) {
+                // 천단위 콤마 추가
+                let formattedValue = numericValue.toLocaleString('ko-KR');
+                
+                // 값이 실제로 변경된 경우에만 업데이트 (무한 루프 방지)
+                if (input.value !== formattedValue) {
+                    input.value = formattedValue;
+                }
+            }
+        } catch (error) {
+            console.error('가격 포맷팅 오류:', error);
+            // 오류 발생시 원래 값 유지
         }
         
-        const formattedValue = numericValue.toLocaleString();
-        
-        // 값이 실제로 변경된 경우에만 업데이트
-        if (originalValue !== formattedValue) {
-            input.value = formattedValue;
-            
-            // 커서 위치 계산 및 복원
-            const oldLength = originalValue.length;
-            const newLength = formattedValue.length;
-            const lengthDiff = newLength - oldLength;
-            let newCursorPosition = cursorPosition + lengthDiff;
-            
-            // 커서가 범위를 벗어나지 않도록 조정
-            newCursorPosition = Math.max(0, Math.min(newCursorPosition, formattedValue.length));
-            
-            // 커서 위치 복원
-            setTimeout(() => {
-                input.setSelectionRange(newCursorPosition, newCursorPosition);
-            }, 0);
-        }
-        
-        // 총액 계산 호출
+        // 총액 계산
         this.calculateTotal();
     }
 
@@ -2700,6 +2735,64 @@ class OrderApp {
         });
         
         document.body.appendChild(overlay);
+    }
+
+    // 수량과 가격 입력 필드 강제 설정 함수
+    enforceNumberInputSettings() {
+        try {
+            const quantityInput = document.getElementById('quantity');
+            const priceInput = document.getElementById('price');
+            
+            // 수량 필드 강제 설정
+            if (quantityInput) {
+                quantityInput.type = 'text';
+                quantityInput.inputMode = 'numeric';
+                quantityInput.autocomplete = 'off';
+                quantityInput.spellcheck = false;
+                quantityInput.setAttribute('data-format', 'number');
+                quantityInput.className = 'number-format-input';
+                
+                // 기존 값이 있으면 포맷팅 적용
+                if (quantityInput.value) {
+                    this.formatQuantity({ target: quantityInput });
+                }
+                
+                console.log('✅ 수량 입력 필드 설정 완료');
+            }
+            
+            // 가격 필드 강제 설정
+            if (priceInput) {
+                priceInput.type = 'text';
+                priceInput.inputMode = 'numeric';
+                priceInput.autocomplete = 'off';
+                priceInput.spellcheck = false;
+                priceInput.setAttribute('data-format', 'number');
+                priceInput.className = 'number-format-input';
+                
+                // 기존 값이 있으면 포맷팅 적용
+                if (priceInput.value) {
+                    this.formatPrice({ target: priceInput });
+                }
+                
+                console.log('✅ 가격 입력 필드 설정 완료');
+            }
+            
+            // 5초 후 한 번 더 체크 (브라우저 자동 완성 등에 의한 변경 방지)
+            setTimeout(() => {
+                if (quantityInput) {
+                    quantityInput.type = 'text';
+                    quantityInput.inputMode = 'numeric';
+                }
+                if (priceInput) {
+                    priceInput.type = 'text';
+                    priceInput.inputMode = 'numeric';
+                }
+                console.log('🔄 수량/가격 필드 재확인 완료');
+            }, 5000);
+            
+        } catch (error) {
+            console.error('입력 필드 설정 중 오류:', error);
+        }
     }
 }
 

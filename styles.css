@@ -1277,4 +1277,108 @@ input#price:focus {
     margin-bottom: 0.4rem;
     color: #333 !important;
     font-weight: 500;
+}
+
+/* =================================
+   NUMBER INPUT SPINNER 완전 제거
+   ================================= */
+
+/* Chrome, Safari, Edge에서 number input spinner 제거 */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+    display: none;
+}
+
+/* Firefox에서 number input spinner 제거 */
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+/* 수량과 가격 입력 필드 강제 텍스트 모드 */
+#quantity,
+#price {
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+    appearance: none;
+    background-color: white !important;
+    font-family: inherit !important;
+    font-size: 1rem !important;
+    padding: 0.8rem !important;
+    border: 1px solid #ddd !important;
+    border-radius: 8px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+#quantity:focus,
+#price:focus {
+    border-color: #2196f3 !important;
+    outline: none !important;
+    box-shadow: 0 0 5px rgba(33, 150, 243, 0.3) !important;
+}
+
+/* 수량과 가격 필드에서 모든 spinner 관련 요소 강제 숨김 */
+#quantity::-webkit-outer-spin-button,
+#quantity::-webkit-inner-spin-button,
+#price::-webkit-outer-spin-button,
+#price::-webkit-inner-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* 입력 필드 일관성 보장 */
+input[type="text"]#quantity,
+input[type="text"]#price,
+input[type="number"]#quantity,
+input[type="number"]#price {
+    -webkit-appearance: none !important;
+    -moz-appearance: textfield !important;
+    appearance: none !important;
+}
+
+/* 숫자 포맷 입력 필드 전용 스타일 */
+.number-format-input {
+    -webkit-appearance: none !important;
+    -moz-appearance: textfield !important;
+    appearance: none !important;
+    background-color: white !important;
+    font-family: inherit !important;
+    font-size: 1rem !important;
+    padding: 0.8rem !important;
+    border: 1px solid #ddd !important;
+    border-radius: 8px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    transition: all 0.3s ease !important;
+}
+
+.number-format-input:focus {
+    border-color: #2196f3 !important;
+    outline: none !important;
+    box-shadow: 0 0 5px rgba(33, 150, 243, 0.3) !important;
+}
+
+/* 모든 spinner 요소 강제 숨김 */
+.number-format-input::-webkit-outer-spin-button,
+.number-format-input::-webkit-inner-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+/* 브라우저별 추가 보정 */
+.number-format-input[type="number"],
+.number-format-input[type="text"] {
+    -webkit-appearance: none !important;
+    -moz-appearance: textfield !important;
+    appearance: none !important;
 } 
