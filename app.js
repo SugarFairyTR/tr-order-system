@@ -947,6 +947,7 @@ class OrderApp {
         
         if (value === '') {
             input.value = '';
+            this.calculateTotal();
             return;
         }
         
@@ -954,6 +955,7 @@ class OrderApp {
         const numericValue = parseInt(value, 10);
         if (isNaN(numericValue)) {
             input.value = '';
+            this.calculateTotal();
             return;
         }
         
