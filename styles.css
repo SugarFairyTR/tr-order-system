@@ -110,7 +110,51 @@ body {
     font-size: 0.9rem;
 }
 
-.form-group input,
+/* ===== INPUT 필드 전용 스타일 (수량, 단가 등) ===== */
+.form-group input {
+    width: 100%;
+    padding: 0.8rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 1rem;
+    transition: all 0.3s;
+    background: #ffffff !important;
+    color: #333333 !important;
+    -webkit-text-fill-color: #333333 !important;
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #2196F3;
+    background: #ffffff !important;
+    color: #333333 !important;
+    -webkit-text-fill-color: #333333 !important;
+    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+/* 수량, 단가 필드 강화 스타일링 */
+input#quantity, 
+input#price {
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    font-weight: 600 !important;
+    font-size: 1.1rem !important;
+    border: 2px solid #4caf50 !important;
+}
+
+input#quantity:focus, 
+input#price:focus {
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    border-color: #2196F3 !important;
+    box-shadow: 0 0 0 4px rgba(33, 150, 243, 0.3) !important;
+}
+
+/* 셀렉트 박스 전용 스타일 */
 .form-group select {
     width: 100%;
     padding: 0.8rem;
@@ -118,20 +162,6 @@ body {
     border-radius: 10px;
     font-size: 1rem;
     transition: all 0.3s;
-    background: #fff;
-    color: #333;
-}
-
-.form-group input:focus,
-.form-group select:focus {
-    outline: none;
-    border-color: #2196F3;
-    background: white;
-    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
-}
-
-/* 셀렉트 박스 스타일 개선 */
-.form-group select {
     appearance: none;
     background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23666"><path d="M7 10l5 5 5-5z"/></svg>') no-repeat right 10px center;
     background-size: 20px;
@@ -139,28 +169,12 @@ body {
     color: #333 !important;
 }
 
-.form-group select option {
-    background-color: #fff !important;
-    color: #333 !important;
-    padding: 8px;
-}
-
-.form-group select option:checked {
-    background-color: #2196F3 !important;
-    color: #fff !important;
-}
-
-.form-group select option:hover {
-    background-color: #f0f0f0 !important;
-    color: #333 !important;
-}
-
 .form-group select:focus {
     outline: none;
     border-color: #2196F3;
-    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
-    background-color: #fff !important;
-    color: #333 !important;
+    background-color: #ffffff !important;
+    color: #333333 !important;
+    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
 }
 
 /* 총액 표시 */

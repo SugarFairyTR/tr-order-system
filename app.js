@@ -2311,6 +2311,138 @@ async function saveToGitHub(data) {
         // 실제 구현시에는 환경 설정 창을 표시하여 
         // 사용자가 토큰과 저장소 정보를 입력하도록 할 수 있습니다
     }
+
+    // Firebase 설정 도우미 표시
+    showFirebaseSetupGuide() {
+        const setupHTML = `
+            <div style="background: white; padding: 2rem; border-radius: 12px; max-width: 900px; margin: 2rem auto; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+                <h2 style="color: #ff6f00; margin-bottom: 1.5rem; text-align: center;">
+                    🔥 Firebase 클라우드 자동 저장 설정
+                </h2>
+                
+                <div style="background: #e8f5e8; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #4caf50;">
+                    <h3 style="color: #2e7d32; margin-bottom: 1rem;">✨ 설정 후 얻는 혜택</h3>
+                    <ul style="color: #333; line-height: 1.8; margin: 0; padding-left: 1.5rem;">
+                        <li><strong>🚀 버튼 한 번 클릭으로 자동 저장</strong> - 추가 액션 없음</li>
+                        <li><strong>🔄 실시간 팀 동기화</strong> - 모든 영업사원 데이터 자동 합쳐짐</li>
+                        <li><strong>📊 내근직 실시간 대시보드</strong> - Firebase 콘솔에서 즉시 확인</li>
+                        <li><strong>💾 완벽한 백업</strong> - Google 클라우드 인프라로 안전</li>
+                        <li><strong>💰 비용 효율적</strong> - 무료 플랜으로도 충분 (1GB 저장공간)</li>
+                    </ul>
+                </div>
+
+                <div style="background: #fff3e0; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #ff9800;">
+                    <h3 style="color: #f57c00; margin-bottom: 1rem;">📋 5분 만에 설정 완료</h3>
+                    <ol style="color: #333; line-height: 1.8; margin: 0; padding-left: 1.5rem;">
+                        <li><strong>Firebase 콘솔 접속</strong> - Google 계정으로 로그인</li>
+                        <li><strong>새 프로젝트 생성</strong> - "주문시스템" 등의 이름 입력</li>
+                        <li><strong>Realtime Database 활성화</strong> - 테스트 모드로 시작</li>
+                        <li><strong>웹앱 추가</strong> - 앱 닉네임 입력</li>
+                        <li><strong>설정 복사</strong> - firebaseConfig 객체 복사</li>
+                        <li><strong>config 파일 생성</strong> - firebase-config.json 업로드</li>
+                    </ol>
+                </div>
+
+                <div style="background: #e3f2fd; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #2196f3;">
+                    <h3 style="color: #1976d2; margin-bottom: 1rem;">💡 config 파일 예시</h3>
+                    <pre style="background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; color: #333; margin: 0;"><code>{
+  "apiKey": "AIzaSyB...",
+  "authDomain": "your-project.firebaseapp.com",
+  "databaseURL": "https://your-project-default-rtdb.firebaseio.com/",
+  "projectId": "your-project",
+  "storageBucket": "your-project.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "1:123456789:web:abcdef"
+}</code></pre>
+                    <p style="color: #666; font-size: 0.9rem; margin: 0.5rem 0 0 0;">
+                        ⚠️ 이 파일을 <code>firebase-config.json</code> 이름으로 저장하여 웹서버에 업로드하세요.
+                    </p>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <button onclick="window.open('https://console.firebase.google.com/', '_blank')" 
+                            style="padding: 1rem; background: #ff6f00; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 600;">
+                        🚀 Firebase 콘솔 열기
+                    </button>
+                    <button onclick="app.downloadConfigTemplate()" 
+                            style="padding: 1rem; background: #2196f3; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 600;">
+                        📄 config 템플릿 다운로드
+                    </button>
+                    <button onclick="app.testFirebaseConnection()" 
+                            style="padding: 1rem; background: #4caf50; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; font-weight: 600;">
+                        🔍 연결 상태 확인
+                    </button>
+                </div>
+
+                <div style="background: #ffebee; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #f44336;">
+                    <h3 style="color: #c62828; margin-bottom: 1rem;">❓ 자주 묻는 질문</h3>
+                    <div style="color: #333; line-height: 1.6;">
+                        <p><strong>Q: 한 번만 설정하면 되나요?</strong></p>
+                        <p style="margin-left: 1rem; color: #666;">A: 네! 최초 1회만 설정하면 영구적으로 사용 가능합니다.</p>
+                        
+                        <p><strong>Q: 비용이 얼마나 드나요?</strong></p>
+                        <p style="margin-left: 1rem; color: #666;">A: 무료 플랜(1GB)으로도 충분하며, 유료 전환시 월 약 33,000원입니다.</p>
+                        
+                        <p><strong>Q: 데이터 안전한가요?</strong></p>
+                        <p style="margin-left: 1rem; color: #666;">A: Google 클라우드 인프라를 사용하므로 매우 안전합니다.</p>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 2rem;">
+                    <button onclick="this.closest('div[style*=\"position: fixed\"]').remove()" 
+                            style="padding: 0.8rem 2rem; background: #6c757d; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; margin-right: 1rem;">
+                        ← 나중에 설정
+                    </button>
+                    <button onclick="app.showCloudSaveAlternatives(); this.closest('div[style*=\"position: fixed\"]').remove();" 
+                            style="padding: 0.8rem 2rem; background: #2196f3; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer;">
+                        🔄 다른 방법 보기
+                    </button>
+                </div>
+            </div>
+        `;
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; overflow-y: auto; display: flex; align-items: center; justify-content: center;';
+        overlay.innerHTML = setupHTML;
+        
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) overlay.remove();
+        });
+        
+        document.body.appendChild(overlay);
+    }
+
+    // Firebase config 템플릿 다운로드
+    downloadConfigTemplate() {
+        const template = {
+            "apiKey": "YOUR_API_KEY_HERE",
+            "authDomain": "your-project.firebaseapp.com",
+            "databaseURL": "https://your-project-default-rtdb.firebaseio.com/",
+            "projectId": "your-project",
+            "storageBucket": "your-project.appspot.com",
+            "messagingSenderId": "123456789",
+            "appId": "1:123456789:web:abcdef"
+        };
+
+        const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'firebase-config.json';
+        a.click();
+        URL.revokeObjectURL(url);
+
+        this.showNotification('📄 템플릿이 다운로드되었습니다! Firebase 콘솔에서 실제 값으로 수정해주세요.', 'success');
+    }
+
+    // Firebase 연결 상태 테스트
+    testFirebaseConnection() {
+        if (this.isFirebaseEnabled) {
+            this.showNotification('✅ Firebase 연결됨! 저장 버튼 클릭시 자동으로 클라우드에 저장됩니다.', 'success');
+        } else {
+            this.showNotification('⚠️ Firebase 설정이 필요합니다. firebase-config.json 파일을 업로드해주세요.', 'warning');
+        }
+    }
 }
 
 // 앱 초기화
