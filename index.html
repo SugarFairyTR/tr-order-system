@@ -210,10 +210,97 @@
                 <div id="orderList" class="content-screen">
                     <div class="screen-header">
                         <h2><i class="fas fa-list"></i> 주문 목록</h2>
+                        
+                        <!-- 검색 및 필터 -->
+                        <div class="order-controls">
+                            <div class="search-box">
+                                <input type="text" id="searchInput" placeholder="주문 검색..." class="search-input">
+                                <button id="searchBtn" class="btn btn-sm">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="filter-buttons">
+                                <button id="upcomingBtn" class="btn btn-sm btn-filter active" data-mode="upcoming">
+                                    <i class="fas fa-clock"></i> 예정
+                                </button>
+                                <button id="myOrdersBtn" class="btn btn-sm btn-filter" data-mode="my">
+                                    <i class="fas fa-user"></i> 나의 주문
+                                </button>
+                                <button id="allOrdersBtn" class="btn btn-sm btn-filter" data-mode="all">
+                                    <i class="fas fa-list-ul"></i> 전체보기
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 주문 관리 버튼들 -->
+                        <div class="order-actions">
+                            <button id="selectAllBtn" class="btn btn-sm btn-secondary">
+                                <i class="fas fa-check-square"></i> 전체선택
+                            </button>
+                            <button id="editSelectedBtn" class="btn btn-sm btn-warning">
+                                <i class="fas fa-edit"></i> 수정하기
+                            </button>
+                            <button id="deleteSelectedBtn" class="btn btn-sm btn-danger">
+                                <i class="fas fa-trash"></i> 삭제하기
+                            </button>
+                            <button id="exportBtn" class="btn btn-sm btn-info">
+                                <i class="fas fa-download"></i> 내보내기
+                            </button>
+                        </div>
                     </div>
                     
                     <div id="orderListContainer" class="order-list-container">
                         <!-- 주문 목록이 여기에 동적으로 생성됩니다 -->
+                    </div>
+                </div>
+
+                <!-- 통계 화면 -->
+                <div id="statistics" class="content-screen">
+                    <div class="screen-header">
+                        <h2><i class="fas fa-chart-bar"></i> 주문 통계</h2>
+                    </div>
+                    
+                    <div class="stats-container">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-shopping-cart"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="totalOrdersCount">0</h3>
+                                <p>전체 주문</p>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-calendar-alt"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="monthlyOrdersCount">0</h3>
+                                <p>이번 달 주문</p>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-won-sign"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="totalAmountSum">0원</h3>
+                                <p>이번 달 총액</p>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="stat-content">
+                                <h3 id="upcomingOrdersCount">0</h3>
+                                <p>예정된 주문</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -228,6 +315,10 @@
                 <button class="nav-btn" data-screen="orderList">
                     <i class="fas fa-list"></i>
                     <span>목록보기</span>
+                </button>
+                <button class="nav-btn" data-screen="statistics">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>통계</span>
                 </button>
             </nav>
 
@@ -246,6 +337,9 @@
         </div>
         <button class="notification-close" onclick="this.parentElement.classList.add('hidden')">&times;</button>
     </div>
+
+    <!-- 📁 파일 업로드 (숨김) -->
+    <input type="file" id="importFileInput" accept=".json" style="display: none;">
 
     <!-- JavaScript -->
     <script src="app.js"></script>
