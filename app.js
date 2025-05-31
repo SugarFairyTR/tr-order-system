@@ -14,20 +14,29 @@ class OrderSystemApp {
         this.init();
     }
 
-    // 🚀 앱 초기화
+    // 🚀 앱 초기화 (디버깅 강화)
     async init() {
         console.log('🚀 티알코리아 주문시스템 V2.0 초기화 시작...');
         
         try {
-            // 1️⃣ 데이터 로드
+            // 1️⃣ DOM 요소 확인
+            const loginScreen = document.getElementById('loginScreen');
+            const mainApp = document.getElementById('mainApp');
+            
+            console.log('🔍 DOM 요소 확인:', {
+                loginScreen: !!loginScreen,
+                mainApp: !!mainApp
+            });
+            
+            // 2️⃣ 데이터 로드
             await this.loadUserConfig();
             await this.loadDatabase();
             await this.loadOrders();
             
-            // 2️⃣ 이벤트 설정
+            // 3️⃣ 이벤트 설정
             this.setupEventListeners();
             
-            // 3️⃣ UI 초기화
+            // 4️⃣ UI 초기화
             this.populateUserSelect();
             this.populateFormSelects();
             this.setDefaultDate();
@@ -258,22 +267,44 @@ class OrderSystemApp {
         this.resetLoginForm();
     }
 
-    // 📱 메인 앱 표시
+    // 📱 메인 앱 표시 (수정된 버전)
     showMainApp() {
+        console.log('📱 메인 앱 표시 시작...');
+        
+        // 🔐 로그인 화면 숨기기
         const loginScreen = document.getElementById('loginScreen');
         const mainApp = document.getElementById('mainApp');
         
-        if (loginScreen) loginScreen.classList.remove('active');
-        if (mainApp) mainApp.classList.remove('hidden');
+        if (loginScreen) {
+            loginScreen.classList.remove('active');
+            loginScreen.style.display = 'none';
+            console.log('🔐 로그인 화면 숨김 완료');
+        }
         
-        // 👤 사용자 정보 표시
-        this.updateUserDisplay();
+        if (mainApp) {
+            mainApp.classList.add('active');
+            mainApp.style.display = 'flex';
+            console.log('📱 메인 앱 화면 표시 완료');
+        } else {
+            console.error('❌ 메인 앱 화면을 찾을 수 없습니다');
+            return;
+        }
         
-        // 📝 폼 데이터 로드
-        this.populateFormSelects();
+        // 📝 사용자 정보 업데이트
+        this.updateUserInfo();
+        
+        // 📋 주문 목록 로드
         this.loadOrderList();
         
-        console.log('📱 메인 앱 표시 완료');
+        // 📝 폼 초기화
+        this.resetOrderForm();
+        
+        // 🔗 연동 선택 다시 설정 (중요!)
+        setTimeout(() => {
+            this.setupCascadingSelects();
+        }, 100);
+        
+        console.log('✅ 메인 앱 표시 완료');
     }
 
     // 🔐 로그인 화면 표시
@@ -288,10 +319,13 @@ class OrderSystemApp {
     }
 
     // 👤 사용자 정보 업데이트
-    updateUserDisplay() {
-        const currentUserDisplay = document.getElementById('currentUserDisplay');
-        if (currentUserDisplay && this.currentUser) {
-            currentUserDisplay.textContent = `${this.currentUser.name} (${this.currentUser.role})`;
+    updateUserInfo() {
+        if (!this.currentUser) return;
+        
+        const userNameElement = document.getElementById('currentUserName');
+        if (userNameElement) {
+            userNameElement.textContent = this.currentUser.name;
+            console.log(`👤 사용자 정보 업데이트: ${this.currentUser.name}`);
         }
     }
 
@@ -678,13 +712,14 @@ class OrderSystemApp {
         });
     }
 
-    // 📅 기본 날짜 설정 (오늘)
+    // 📅 기본 날짜 설정
     setDefaultDate() {
-        const deliveryDate = document.getElementById('deliveryDate');
-        if (deliveryDate) {
+        const dateInput = document.getElementById('orderDate');
+        if (dateInput) {
             const today = new Date();
             const formattedDate = today.toISOString().split('T')[0];
-            deliveryDate.value = formattedDate;
+            dateInput.value = formattedDate;
+            console.log(`📅 기본 날짜 설정: ${formattedDate}`);
         }
     }
 
@@ -824,26 +859,35 @@ class OrderSystemApp {
         }
     }
 
-    // 🔄 주문 폼 초기화
+    // 📝 주문 폼 초기화
     resetOrderForm() {
-        const form = document.getElementById('orderForm');
-        if (form) {
-            form.reset();
-        }
+        console.log('📝 주문 폼 초기화 시작...');
         
-        // 📅 기본 날짜 재설정
+        // 📅 오늘 날짜 설정
         this.setDefaultDate();
         
-        // 👤 기본 담당자 재설정
-        this.setDefaultManager();
+        // 🧹 모든 입력 필드 초기화
+        const inputs = ['quantity', 'price', 'notes'];
+        inputs.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.value = '';
+            }
+        });
         
         // 💰 총액 초기화
-        const totalAmountDiv = document.getElementById('totalAmount');
-        if (totalAmountDiv) {
-            totalAmountDiv.textContent = '0원';
+        const totalAmount = document.getElementById('totalAmount');
+        if (totalAmount) {
+            totalAmount.textContent = '0원';
         }
         
-        console.log('🔄 주문 폼 초기화 완료');
+        // 📂 설탕 기본 선택
+        const sugarRadio = document.getElementById('categorySugar');
+        if (sugarRadio) {
+            sugarRadio.checked = true;
+        }
+        
+        console.log('✅ 주문 폼 초기화 완료');
     }
 
     // 🔄 로그인 폼 초기화
@@ -859,95 +903,53 @@ class OrderSystemApp {
     loadOrderList() {
         console.log('📋 주문 목록 로드 시작...');
         
-        const container = document.getElementById('orderListContainer');
-        if (!container) return;
-        
-        // 🧹 기존 목록 제거
-        container.innerHTML = '';
-        
-        if (this.orders.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-inbox"></i>
-                    <p>등록된 주문이 없습니다</p>
-                </div>
-            `;
+        const orderList = document.getElementById('orderList');
+        if (!orderList) {
+            console.error('❌ 주문 목록 요소를 찾을 수 없습니다');
             return;
         }
         
-        // 📅 최신 주문부터 표시
-        const sortedOrders = [...this.orders].sort((a, b) => 
-            new Date(b.createdAt) - new Date(a.createdAt)
-        );
+        // 🧹 기존 목록 초기화
+        orderList.innerHTML = '';
         
-        sortedOrders.forEach(order => {
-            const orderElement = this.createOrderElement(order);
-            container.appendChild(orderElement);
-        });
+        if (this.orders.length === 0) {
+            orderList.innerHTML = `
+                <div class="empty-state">
+                    <p>📝 등록된 주문이 없습니다</p>
+                    <p>새 주문을 등록해보세요!</p>
+                </div>
+            `;
+        } else {
+            // 📋 주문 목록 표시
+            this.orders.forEach(order => {
+                const orderElement = this.createOrderElement(order);
+                orderList.appendChild(orderElement);
+            });
+        }
         
-        console.log(`📋 ${sortedOrders.length}개 주문 표시 완료`);
+        console.log(`📋 주문 목록 ${this.orders.length}개 로드 완료`);
     }
 
     // 📋 주문 요소 생성
     createOrderElement(order) {
         const orderDiv = document.createElement('div');
         orderDiv.className = 'order-item';
-        orderDiv.dataset.orderId = order.id;
-        
-        const createdDate = new Date(order.createdAt).toLocaleString('ko-KR');
-        const deliveryDateTime = `${order.deliveryDate} ${order.deliveryTime}`;
-        
         orderDiv.innerHTML = `
             <div class="order-header">
-                <span class="order-id">${order.id}</span>
-                <span class="order-date">${createdDate}</span>
+                <span class="order-number">${order.주문번호}</span>
+                <span class="order-date">${order.날짜}</span>
             </div>
-            
             <div class="order-details">
-                <div class="order-detail">
-                    <span class="order-detail-label">👤 담당자</span>
-                    <span class="order-detail-value">${order.manager}</span>
-                </div>
-                <div class="order-detail">
-                    <span class="order-detail-label">🏢 판매처</span>
-                    <span class="order-detail-value">${order.seller}</span>
-                </div>
-                <div class="order-detail">
-                    <span class="order-detail-label">📍 도착지</span>
-                    <span class="order-detail-value">${order.destination}</span>
-                </div>
-                <div class="order-detail">
-                    <span class="order-detail-label">📦 품목</span>
-                    <span class="order-detail-value">${order.product}</span>
-                </div>
-                <div class="order-detail">
-                    <span class="order-detail-label">⚖️ 수량</span>
-                    <span class="order-detail-value">${parseFloat(order.quantity).toLocaleString('ko-KR')} KG</span>
-                </div>
-                <div class="order-detail">
-                    <span class="order-detail-label">💰 단가</span>
-                    <span class="order-detail-value">${parseFloat(order.price).toLocaleString('ko-KR')}원</span>
-                </div>
-                <div class="order-detail">
-                    <span class="order-detail-label">💵 총액</span>
-                    <span class="order-detail-value">${order.totalAmount.toLocaleString('ko-KR')}원</span>
-                </div>
-                <div class="order-detail">
-                    <span class="order-detail-label">🚚 배송</span>
-                    <span class="order-detail-value">${deliveryDateTime}</span>
-                </div>
+                <p><strong>담당자:</strong> ${order.담당자}</p>
+                <p><strong>판매처:</strong> ${order.판매처}</p>
+                <p><strong>품목:</strong> ${order.품목}</p>
+                <p><strong>총액:</strong> ${order.총액}</p>
             </div>
-            
             <div class="order-actions">
-                <button class="btn btn-sm btn-secondary" onclick="app.editOrder('${order.id}')">
-                    <i class="fas fa-edit"></i> 수정
-                </button>
-                <button class="btn btn-sm btn-danger" onclick="app.deleteOrder('${order.id}')">
-                    <i class="fas fa-trash"></i> 삭제
-                </button>
+                <button onclick="editOrder('${order.주문번호}')" class="btn-edit">수정</button>
+                <button onclick="deleteOrder('${order.주문번호}')" class="btn-delete">삭제</button>
             </div>
         `;
-        
         return orderDiv;
     }
 
