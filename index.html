@@ -3,17 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>티알코리아 주문시스템 V3.0</title>
+    <title>티알코리아 주문시스템 V1.0</title>
     
-    <!-- PWA 설정 -->
+    <!-- PWA 메타 태그 -->
     <meta name="theme-color" content="#2196F3">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="티알코리아 주문시스템">
+    <meta name="apple-mobile-web-app-title" content="티알코리아 주문시스템 V1.0">
+    
+    <!-- PWA 매니페스트 -->
     <link rel="manifest" href="manifest.json">
     
-    <!-- 스타일 -->
+    <!-- 아이콘 -->
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    
+    <!-- CSS -->
     <link rel="stylesheet" href="styles.css">
+    
+    <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <!-- Firebase SDK -->
@@ -21,129 +29,151 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 </head>
 <body>
-    <div id="app" class="app-container">
-        
-        <!-- 🔐 로그인 화면 -->
-        <div id="loginScreen" class="login-screen">
+    <div class="app-container">
+        <!-- 로그인 화면 -->
+        <div id="loginScreen" class="login-screen active">
             <div class="login-container">
-                <div class="company-header">
-                    <img src="logo.png" alt="티알코리아" class="company-logo" onerror="this.style.display='none'">
-                    <h1>티알코리아</h1>
-                    <p>주문시스템 V3.0</p>
+                <div class="login-header">
+                    <div class="company-logo">
+                        <i class="fas fa-building"></i>
+                        <h1>티알코리아</h1>
+                        <p>주문시스템</p>
+                    </div>
                 </div>
                 
                 <div class="login-form">
                     <div class="form-group">
-                        <label for="loginUser">👤 담당자 선택</label>
-                        <select id="loginUser" required>
+                        <label for="loginManager">담당자 선택</label>
+                        <select id="loginManager" required>
                             <option value="">담당자를 선택하세요</option>
+                            <option value="김정진">김정진</option>
+                            <option value="박경범">박경범</option>
+                            <option value="이선화">이선화</option>
+                            <option value="신준호">신준호</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
-                        <label for="loginPin">🔑 PIN 번호 (4자리)</label>
-                        <input type="password" id="loginPin" maxlength="4" placeholder="PIN 입력" required>
+                        <label for="loginPin">PIN 번호 (4자리)</label>
+                        <input type="password" id="loginPin" maxlength="4" placeholder="PIN 번호 입력" required>
+                        <small class="pin-hint">담당자별 PIN: 김정진(9736), 박경범(5678), 이선화(0000), 신준호(3444), 김다해(9797), 송현지(1234)</small>
                     </div>
                     
-                    <button id="loginBtn" class="btn btn-primary">
+                    <button type="button" id="loginBtn" class="btn btn-primary login-btn">
                         <i class="fas fa-sign-in-alt"></i> 로그인
                     </button>
-                </div>
-                
-                <div class="login-footer">
-                    <p>© 2025 주식회사 티알코리아</p>
-                    <p class="version">Version 3.0 - 완전 새로운 시작</p>
+                    
+                    <div class="login-footer">
+                        <p>© 2025 주식회사 티알코리아</p>
+                        <p class="version">v1.0.0</p>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- 📱 메인 앱 화면 -->
+        <!-- 메인 앱 화면 (로그인 후 표시) -->
         <div id="mainApp" class="main-app hidden">
-            
-            <!-- 📋 헤더 -->
+            <!-- 헤더 -->
             <header class="app-header">
-                <div class="header-content">
-                    <h1><i class="fas fa-shopping-cart"></i> 티알코리아</h1>
-                    <div class="user-info">
-                        <span id="currentUserName"></span>
-                        <button id="logoutBtn" class="logout-btn">
-                            <i class="fas fa-sign-out-alt"></i>
-                        </button>
-                    </div>
+                <div class="header-left">
+                    <h1><i class="fas fa-shopping-cart"></i> 티알코리아 주문시스템 V1.0</h1>
+                    <span id="currentUser" class="current-user"></span>
+                </div>
+                <div class="header-right">
+                    <button id="settingsBtn" class="settings-btn">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                    <button id="logoutBtn" class="logout-btn">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
                 </div>
             </header>
 
-            <!-- 📝 메인 컨텐츠 -->
+            <!-- 메인 컨텐츠 -->
             <main class="main-content">
-                
                 <!-- 주문 입력 화면 -->
-                <div id="orderForm" class="content-screen active">
-                    <div class="screen-header">
+                <div id="orderForm" class="screen active">
+                    <div class="form-section">
                         <h2><i class="fas fa-plus-circle"></i> 신규 주문 입력</h2>
-                    </div>
-                    
-                    <form class="order-form">
-                        <!-- 담당자 -->
+                        
+                        <!-- 담당자 선택 -->
                         <div class="form-group">
-                            <label for="manager">👤 담당자</label>
+                            <label for="manager">담당자</label>
                             <select id="manager" required>
                                 <option value="">담당자 선택</option>
                             </select>
                         </div>
 
-                        <!-- 판매처 -->
+                        <!-- 판매처 선택 -->
                         <div class="form-group">
-                            <label for="seller">🏢 판매처</label>
+                            <label for="seller">판매처</label>
                             <select id="seller" required>
                                 <option value="">판매처 선택</option>
                             </select>
                         </div>
 
-                        <!-- 도착지 -->
+                        <!-- 도착지 선택 -->
                         <div class="form-group">
-                            <label for="destination">📍 도착지</label>
+                            <label for="destination">도착지</label>
                             <select id="destination" required>
                                 <option value="">도착지 선택</option>
                             </select>
                         </div>
 
-                        <!-- 분류 -->
+                        <!-- 분류 선택 -->
                         <div class="form-group">
-                            <label for="category">📂 분류</label>
+                            <label for="category">분류</label>
                             <select id="category" required>
                                 <option value="">분류 선택</option>
                             </select>
                         </div>
 
-                        <!-- 품목 -->
+                        <!-- 품목 선택 -->
                         <div class="form-group">
-                            <label for="product">📦 품목</label>
+                            <label for="product">품목</label>
                             <select id="product" required>
                                 <option value="">품목 선택</option>
                             </select>
                         </div>
 
-                        <!-- 수량 -->
+                        <!-- 수량 입력 -->
                         <div class="form-group">
-                            <label for="quantity">⚖️ 수량 (KG)</label>
-                            <input type="text" id="quantity" class="number-input" placeholder="수량 입력" required>
+                            <label for="quantity">수량 (KG)</label>
+                            <input type="text" 
+                                   id="quantity" 
+                                   class="number-format-input" 
+                                   data-format="number" 
+                                   inputmode="numeric" 
+                                   pattern="[0-9,]*" 
+                                   autocomplete="off" 
+                                   spellcheck="false"
+                                   required 
+                                   placeholder="수량 입력">
                         </div>
 
-                        <!-- 단가 -->
+                        <!-- 단가 입력 -->
                         <div class="form-group">
-                            <label for="price">💰 단가 (원)</label>
-                            <input type="text" id="price" class="number-input" placeholder="단가 입력" required>
+                            <label for="price">단가 (공급가액)</label>
+                            <input type="text" 
+                                   id="price" 
+                                   class="number-format-input" 
+                                   data-format="number" 
+                                   inputmode="numeric" 
+                                   pattern="[0-9,]*" 
+                                   autocomplete="off" 
+                                   spellcheck="false"
+                                   required 
+                                   placeholder="단가 입력">
                         </div>
 
-                        <!-- 도착일 -->
+                        <!-- 도착일 선택 -->
                         <div class="form-group">
-                            <label for="deliveryDate">📅 도착일</label>
+                            <label for="deliveryDate">도착일</label>
                             <input type="date" id="deliveryDate" required>
                         </div>
 
-                        <!-- 도착시간 -->
                         <div class="form-group">
-                            <label for="deliveryTime">🕐 도착시간</label>
+                            <label for="deliveryTime">도착시간</label>
                             <select id="deliveryTime" required>
                                 <option value="">시간 선택</option>
                                 <option value="07:00">07:00 AM</option>
@@ -158,12 +188,14 @@
                                 <option value="16:00">04:00 PM</option>
                                 <option value="17:00">05:00 PM</option>
                                 <option value="18:00">06:00 PM</option>
+                                <option value="19:00">07:00 PM</option>
+                                <option value="20:00">08:00 PM</option>
                             </select>
                         </div>
 
                         <!-- 총액 표시 -->
-                        <div class="total-section">
-                            <label>💵 총액 (공급가액)</label>
+                        <div class="form-group total-section">
+                            <label>총액 (공급가액)</label>
                             <div class="total-amount" id="totalAmount">0원</div>
                         </div>
 
@@ -176,23 +208,151 @@
                                 <i class="fas fa-undo"></i> 초기화
                             </button>
                         </div>
-                    </form>
+                    </div>
                 </div>
 
                 <!-- 주문 목록 화면 -->
-                <div id="orderList" class="content-screen">
-                    <div class="screen-header">
-                        <h2><i class="fas fa-list"></i> 주문 목록</h2>
+                <div id="orderList" class="screen">
+                    <div class="page-header">
+                        <h2>📋 주문 목록</h2>
+                        <div class="header-actions">
+                            <button type="button" class="btn btn-secondary" onclick="app.showStatistics()">
+                                <i class="fas fa-chart-bar"></i> 통계
+                            </button>
+                        </div>
                     </div>
-                    
-                    <div id="orderListContainer" class="order-list-container">
+
+                    <!-- 검색 및 필터 -->
+                    <div class="filter-section">
+                        <div class="form-group">
+                            <label for="searchBox">🔍 검색</label>
+                            <input type="text" id="searchBox" placeholder="주문번호, 담당자, 판매처, 품목 등 검색..." 
+                                   style="width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;">
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                            <div class="form-group">
+                                <label for="filterManager">담당자 필터</label>
+                                <select id="filterManager">
+                                    <option value="">전체</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="filterDate">날짜 필터</label>
+                                <input type="date" id="filterDate">
+                            </div>
+
+                            <div class="form-group" style="display: flex; align-items: center; padding-top: 1.5rem;">
+                                <label>
+                                    <input type="checkbox" id="showPastOrders" style="margin-right: 0.5rem;">
+                                    과거 주문 표시
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 주문 통계 요약 -->
+                    <div class="stats-summary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 2rem; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #2196f3;">
+                                <span id="totalOrders">0</span>
+                            </div>
+                            <div style="font-size: 0.9rem; color: #666;">전체 주문</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #4caf50;">
+                                <span id="todayOrders">0</span>
+                            </div>
+                            <div style="font-size: 0.9rem; color: #666;">오늘 주문</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-size: 1.5rem; font-weight: bold; color: #ff9800;">
+                                <span id="futureOrders">0</span>
+                            </div>
+                            <div style="font-size: 0.9rem; color: #666;">미래 주문</div>
+                        </div>
+                    </div>
+
+                    <!-- 주문 목록 컨테이너 -->
+                    <div id="orderListContainer">
                         <!-- 주문 목록이 여기에 동적으로 생성됩니다 -->
                     </div>
                 </div>
 
+                <!-- 주문 수정 화면 -->
+                <div id="orderEdit" class="screen">
+                    <div class="form-section">
+                        <h2><i class="fas fa-edit"></i> 주문 수정</h2>
+                        <!-- 주문 입력과 동일한 폼이지만 수정 모드 -->
+                        <div id="editFormContainer">
+                            <!-- 동적으로 생성됨 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 설정 화면 -->
+                <div id="settings" class="screen">
+                    <div class="settings-section">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                            <button type="button" onclick="app.switchScreen('orderForm')" class="btn btn-secondary" style="flex: none; padding: 0.5rem 1rem;">
+                                <i class="fas fa-arrow-left"></i> 뒤로
+                            </button>
+                            <h2 style="margin: 0; flex: 1; text-align: center;"><i class="fas fa-cog"></i> 설정</h2>
+                            <div style="flex: none; width: 80px;"></div> <!-- 균형을 위한 공간 -->
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="defaultManager">기본 담당자</label>
+                            <select id="defaultManager">
+                                <option value="">선택 안함</option>
+                            </select>
+                        </div>
+
+                        <div class="settings-info">
+                            <h3>앱 정보</h3>
+                            <p>버전: 1.0.0</p>
+                            <p>마지막 업데이트: <span id="lastUpdate"></span></p>
+                            <p>저장된 주문: <span id="orderCount">0</span>개</p>
+                            <p>로그인 사용자: <span id="loginUser"></span></p>
+                        </div>
+
+                        <div class="button-group">
+                            <button type="button" id="saveFileBtn" class="btn btn-primary">
+                                <i class="fas fa-file-download"></i> order_list.json 저장
+                            </button>
+                            <button type="button" id="loadFileBtn" class="btn btn-primary">
+                                <i class="fas fa-file-upload"></i> order_list.json 불러오기
+                            </button>
+                        </div>
+
+                        <div class="button-group" style="margin-top: 1rem;">
+                            <button type="button" onclick="app.showFirebaseSetupGuide()" class="btn" 
+                                    style="background: linear-gradient(135deg, #ff6f00 0%, #ff8f00 100%); color: white;">
+                                <i class="fas fa-fire"></i> Firebase 클라우드 자동저장 설정
+                            </button>
+                        </div>
+
+                        <div class="button-group" style="margin-top: 1rem;">
+                            <button type="button" onclick="app.showCloudSaveAlternatives()" class="btn" 
+                                    style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                <i class="fas fa-cloud"></i> 기타 클라우드 저장 방법들
+                            </button>
+                        </div>
+
+                        <div class="button-group" style="margin-top: 1rem;">
+                            <button type="button" id="exportDataBtn" class="btn btn-secondary">
+                                <i class="fas fa-download"></i> 데이터 내보내기
+                            </button>
+                            <button type="button" id="clearDataBtn" class="btn btn-danger">
+                                <i class="fas fa-trash"></i> 모든 데이터 삭제
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </main>
 
-            <!-- 🔽 하단 네비게이션 -->
+            <!-- 하단 네비게이션 -->
             <nav class="bottom-nav">
                 <button class="nav-btn active" data-screen="orderForm">
                     <i class="fas fa-plus"></i>
@@ -202,20 +362,24 @@
                     <i class="fas fa-list"></i>
                     <span>목록보기</span>
                 </button>
+                <button class="nav-btn" data-screen="orderEdit">
+                    <i class="fas fa-edit"></i>
+                    <span>주문수정</span>
+                </button>
             </nav>
         </div>
     </div>
 
-    <!-- 📢 알림 메시지 -->
-    <div id="notification" class="notification hidden">
-        <span id="notificationText"></span>
-        <button onclick="this.parentElement.classList.add('hidden')">&times;</button>
-    </div>
-
-    <!-- ⏳ 로딩 스피너 -->
-    <div id="loadingSpinner" class="loading-spinner hidden">
+    <!-- 로딩 스피너 -->
+    <div id="loadingSpinner" class="loading-spinner">
         <div class="spinner"></div>
         <p>처리 중...</p>
+    </div>
+
+    <!-- 알림 메시지 -->
+    <div id="notification" class="notification">
+        <span id="notificationText"></span>
+        <button id="closeNotification">&times;</button>
     </div>
 
     <!-- JavaScript -->
