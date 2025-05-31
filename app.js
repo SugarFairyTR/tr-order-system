@@ -1,4 +1,4 @@
-// 🚀 티알코리아 주문시스템 V2.0 - 완전 재작성
+// 🚀 티알코리아 주문시스템 V2.0 - 재작성
 // 📅 작성일: 2025년 1월
 // 👨‍💻 목표: 단순하고 강력한 웹앱
 
@@ -508,7 +508,7 @@ class OrderSystemApp {
         console.log(`🏢 ${selectedManager}의 판매처 ${sellers.length}개 로드 완료`);
     }
 
-    // 📍 도착지 옵션 업데이트 (완전 수정된 버전)
+    // 📍 도착지 옵션 업데이트 (수정된 버전)
     updateDestinationOptions(selectedSeller) {
         const destinationSelect = document.getElementById('destination');
         if (!destinationSelect || !selectedSeller) {
