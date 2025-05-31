@@ -6,7 +6,7 @@
     <title>티알코리아 주문시스템 V2.0</title>
     
     <!-- PWA 설정 -->
-    <meta name="theme-color" content="#2196F3">
+    <meta name="theme-color" content="#0078d4">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="티알코리아 주문시스템">
@@ -23,247 +23,155 @@
         <div id="loginScreen" class="screen active">
             <div class="login-container">
                 <div class="login-header">
-                    <div class="company-logo">
-                        <img src="./티알코리아 CI LOGO ONLY.png" alt="티알코리아 로고" class="logo-image">
-                    </div>
-                    <h1>티알코리아 주문시스템</h1>
+                    <h1>🏢 티알코리아 주문시스템</h1>
                     <p>V2.0 - 모바일 최적화</p>
                 </div>
                 
                 <div class="login-form">
                     <div class="form-group">
-                        <label for="loginUser">👤 담당자 선택</label>
-                        <select id="loginUser" required>
-                            <option value="">담당자를 선택하세요</option>
+                        <label for="userSelect">👤 사용자 선택</label>
+                        <select id="userSelect" class="form-control">
+                            <option value="">사용자를 선택하세요</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
-                        <label for="loginPin">🔑 PIN 번호 (4자리)</label>
-                        <input type="password" id="loginPin" maxlength="4" placeholder="PIN 입력" required>
+                        <label for="pinInput">🔐 PIN 번호</label>
+                        <input type="password" id="pinInput" class="form-control" placeholder="4자리 PIN 입력" maxlength="4">
                     </div>
                     
-                    <button type="button" id="loginBtn" class="btn btn-primary">
+                    <button id="loginBtn" class="btn btn-primary">
                         <i class="fas fa-sign-in-alt"></i> 로그인
                     </button>
-                    
-                    <div class="login-footer">
-                        <p>© 2025 주식회사 티알코리아</p>
-                        <p class="version">V2.0.0 - </p>
-                    </div>
                 </div>
             </div>
         </div>
 
         <!-- 📱 메인 앱 화면 -->
-        <div id="mainApp" class="screen">
+        <div id="mainApp" class="screen" style="display: none;">
             <header class="app-header">
                 <div class="header-content">
-                    <!-- 🏢 작은 로고 추가 -->
-                    <div class="header-logo">
-                        <img src="./티알코리아 CI LOGO ONLY.png" alt="티알코리아" class="header-logo-image">
-                    </div>
-                    <div class="header-info">
-                        <h1>티알코리아 주문시스템</h1>
-                        <div class="user-info">
-                            <span id="currentUserName">사용자</span>
-                            <button id="logoutBtn" class="logout-btn">
-                                <i class="fas fa-sign-out-alt"></i>
-                            </button>
-                        </div>
+                    <h1>📋 주문 관리</h1>
+                    <div class="user-info">
+                        <span id="currentUserName">사용자</span>
+                        <button id="logoutBtn" class="logout-btn">로그아웃</button>
                     </div>
                 </div>
             </header>
 
-            <!-- 📝 메인 컨텐츠 -->
-            <main class="main-content">
-                
-                <!-- 주문 입력 화면 -->
-                <div id="orderFormScreen" class="content-screen active">
-                    <div class="form-section">
-                        <h2><i class="fas fa-plus-circle"></i> 신규 주문 입력</h2>
-                        
-                        <form id="orderForm">
-                            <!-- 담당자 -->
+            <main class="app-main">
+                <!-- 📝 주문 입력 폼 -->
+                <section class="order-form-section">
+                    <h2>📝 신규 주문 입력</h2>
+                    
+                    <form id="orderForm" class="order-form">
+                        <div class="form-row">
                             <div class="form-group">
-                                <label for="manager">👤 담당자</label>
-                                <select id="manager" required>
+                                <label>📅 주문일</label>
+                                <input type="date" id="orderDate" class="form-control">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>👤 담당자</label>
+                                <select id="manager" class="form-control">
                                     <option value="">담당자 선택</option>
                                 </select>
                             </div>
+                        </div>
 
-                            <!-- 판매처 -->
+                        <div class="form-row">
                             <div class="form-group">
-                                <label for="seller">🏢 판매처</label>
-                                <select id="seller" required>
+                                <label>🏢 판매처</label>
+                                <select id="seller" class="form-control">
                                     <option value="">판매처 선택</option>
                                 </select>
                             </div>
-
-                            <!-- 도착지 -->
+                            
                             <div class="form-group">
-                                <label for="destination">📍 도착지</label>
-                                <select id="destination" required>
+                                <label>📍 도착지</label>
+                                <select id="destination" class="form-control">
                                     <option value="">도착지 선택</option>
                                 </select>
                             </div>
+                        </div>
 
-                            <!-- 분류 -->
-                            <div class="form-group">
-                                <label>📂 분류</label>
-                                <div class="category-options">
-                                    <label class="radio-option">
-                                        <input type="radio" name="category" value="설탕" id="categorySugar" checked>
-                                        <span class="radio-label">🍯 설탕</span>
-                                    </label>
-                                    <label class="radio-option">
-                                        <input type="radio" name="category" value="식품첨가물" id="categoryAdditive">
-                                        <span class="radio-label">🧪 식품첨가물</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- 품목 -->
-                            <div class="form-group">
-                                <label for="product">📦 품목</label>
-                                <select id="product" required>
-                                    <option value="">품목 선택</option>
-                                </select>
-                            </div>
-
-                            <!-- 수량 -->
-                            <div class="form-group">
-                                <label for="quantity">⚖️ 수량 (KG)</label>
-                                <input type="text" id="quantity" class="number-input" placeholder="수량 입력" required>
-                            </div>
-
-                            <!-- 단가 -->
-                            <div class="form-group">
-                                <label for="price">💰 단가 (원)</label>
-                                <input type="text" id="price" class="number-input" placeholder="단가 입력" required>
-                            </div>
-
-                            <!-- 도착일 -->
-                            <div class="form-group">
-                                <label for="deliveryDate">📅 도착일</label>
-                                <input type="date" id="deliveryDate" required>
-                            </div>
-
-                            <!-- 도착시간 -->
-                            <div class="form-group">
-                                <label for="deliveryTime">🕐 도착시간</label>
-                                <select id="deliveryTime" required>
-                                    <option value="">시간 선택</option>
-                                    <option value="07:00">07:00 AM</option>
-                                    <option value="08:00">08:00 AM</option>
-                                    <option value="09:00">09:00 AM</option>
-                                    <option value="10:00">10:00 AM</option>
-                                    <option value="11:00">11:00 AM</option>
-                                    <option value="12:00">12:00 PM</option>
-                                    <option value="13:00">01:00 PM</option>
-                                    <option value="14:00">02:00 PM</option>
-                                    <option value="15:00">03:00 PM</option>
-                                    <option value="16:00">04:00 PM</option>
-                                    <option value="17:00">05:00 PM</option>
-                                    <option value="18:00">06:00 PM</option>
-                                </select>
-                            </div>
-
-                            <!-- 총액 표시 -->
-                            <div class="form-group total-section">
-                                <label>💵 총액 (공급가액)</label>
-                                <div class="total-amount" id="totalAmount">0원</div>
-                            </div>
-
-                            <!-- 버튼들 -->
-                            <div class="button-group">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-save"></i> 저장
-                                </button>
-                                <button type="button" id="resetBtn" class="btn btn-secondary">
-                                    <i class="fas fa-undo"></i> 초기화
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- 주문 목록 화면 -->
-                <div id="orderListScreen" class="content-screen">
-                    <div class="list-section">
-                        <h2><i class="fas fa-list"></i> 주문 목록</h2>
-                        
-                        <!-- 검색 및 필터 -->
-                        <div class="filter-section">
-                            <div class="search-box">
-                                <input type="text" id="searchInput" placeholder="🔍 검색 (주문번호, 담당자, 판매처...)">
-                            </div>
-                            
-                            <div class="filter-controls">
-                                <select id="filterManager">
-                                    <option value="">전체 담당자</option>
-                                </select>
-                                
-                                <input type="date" id="filterDate">
-                                
-                                <label class="checkbox-label">
-                                    <input type="checkbox" id="showPastOrders">
-                                    과거 주문 표시
+                        <div class="form-group">
+                            <label>📂 분류</label>
+                            <div class="category-options">
+                                <label class="radio-option">
+                                    <input type="radio" name="category" value="설탕" id="categorySugar" checked>
+                                    <span class="radio-label">🍯 설탕</span>
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="category" value="식품첨가물" id="categoryAdditive">
+                                    <span class="radio-label">🧪 식품첨가물</span>
                                 </label>
                             </div>
                         </div>
 
-                        <!-- 주문 목록 컨테이너 -->
-                        <div id="orderListContainer" class="order-list">
-                            <!-- 동적으로 생성됨 -->
+                        <div class="form-group">
+                            <label>📦 품목</label>
+                            <select id="product" class="form-control">
+                                <option value="">품목 선택</option>
+                            </select>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>📊 수량 (KG)</label>
+                                <input type="text" id="quantity" class="form-control" placeholder="수량 입력">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>💰 단가 (원)</label>
+                                <input type="text" id="price" class="form-control" placeholder="단가 입력">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>💵 총액</label>
+                            <div id="totalAmount" class="total-display">0원</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>📝 비고</label>
+                            <textarea id="notes" class="form-control" placeholder="추가 메모사항"></textarea>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" id="saveOrderBtn" class="btn btn-primary">
+                                💾 주문 저장
+                            </button>
+                            <button type="button" id="resetFormBtn" class="btn btn-secondary">
+                                🔄 초기화
+                            </button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- 📋 주문 목록 -->
+                <section class="order-list-section">
+                    <h2>📋 주문 목록</h2>
+                    <div id="orderList" class="order-list">
+                        <div class="empty-state">
+                            <p>📝 등록된 주문이 없습니다</p>
+                            <p>새 주문을 등록해보세요!</p>
                         </div>
                     </div>
-                </div>
-
-                <!-- 주문 수정 화면 -->
-                <div id="orderEditScreen" class="content-screen">
-                    <div class="edit-section">
-                        <h2><i class="fas fa-edit"></i> 주문 수정</h2>
-                        
-                        <div id="editOrdersList" class="edit-orders-list">
-                            <!-- 동적으로 생성됨 -->
-                        </div>
-                    </div>
-                </div>
-
+                </section>
             </main>
-
-            <!-- 🔽 하단 네비게이션 -->
-            <nav class="bottom-nav">
-                <button class="nav-btn active" data-screen="orderFormScreen">
-                    <i class="fas fa-plus"></i>
-                    <span>주문입력</span>
-                </button>
-                <button class="nav-btn" data-screen="orderListScreen">
-                    <i class="fas fa-list"></i>
-                    <span>목록보기</span>
-                </button>
-                <button class="nav-btn" data-screen="orderEditScreen">
-                    <i class="fas fa-edit"></i>
-                    <span>주문수정</span>
-                </button>
-            </nav>
         </div>
     </div>
 
-    <!-- 📢 알림 메시지 -->
-    <div id="notification" class="notification hidden">
-        <span id="notificationText"></span>
-        <button id="closeNotification">&times;</button>
-    </div>
-
-    <!-- ⏳ 로딩 스피너 -->
-    <div id="loadingSpinner" class="loading-spinner hidden">
+    <!-- 🔄 로딩 스피너 -->
+    <div id="loadingSpinner" class="loading-spinner" style="display: none;">
         <div class="spinner"></div>
         <p>처리 중...</p>
     </div>
 
-    <!-- JavaScript -->
+    <!-- 📢 알림 -->
+    <div id="notification" class="notification" style="display: none;"></div>
+
     <script src="app.js"></script>
 </body>
 </html>
