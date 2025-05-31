@@ -508,40 +508,50 @@ class OrderSystemApp {
         console.log(`🏢 ${selectedManager}의 판매처 ${sellers.length}개 로드 완료`);
     }
 
-    // 📍 도착지 옵션 업데이트 (수정된 버전)
+    // 📍 도착지 옵션 업데이트 (완전 수정된 버전)
     updateDestinationOptions(selectedSeller) {
         const destinationSelect = document.getElementById('destination');
-        if (!destinationSelect || !this.database || !selectedSeller) {
-            console.warn('⚠️ 도착지 업데이트 조건 미충족:', {
-                destinationSelect: !!destinationSelect,
-                database: !!this.database,
-                selectedSeller: selectedSeller
-            });
+        if (!destinationSelect || !selectedSeller) {
+            console.warn('⚠️ 도착지 업데이트 조건 미충족');
             return;
         }
         
         console.log(`📍 ${selectedSeller}의 도착지 업데이트 시작...`);
-        console.log('📊 전체 도착지 데이터:', this.database.destinations_by_seller);
         
         // 🧹 기존 옵션 제거 (첫 번째 제외)
         while (destinationSelect.children.length > 1) {
             destinationSelect.removeChild(destinationSelect.lastChild);
         }
         
-        // 📊 판매처별 도착지 가져오기
-        const destinations = this.database.destinations_by_seller?.[selectedSeller];
+        // 📊 JSON 구조에 맞춰 도착지 데이터 찾기
+        let destinations = [];
         
-        console.log(`📍 ${selectedSeller}의 도착지:`, destinations);
+        // 방법 1: destinations_by_seller에서 직접 찾기
+        if (this.database?.destinations_by_seller?.[selectedSeller]) {
+            destinations = this.database.destinations_by_seller[selectedSeller];
+            console.log(`📍 방법1 성공: ${destinations.length}개 도착지 발견`);
+        }
+        // 방법 2: sellers_by_destination에서 역으로 찾기
+        else if (this.database?.sellers_by_destination) {
+            Object.keys(this.database.sellers_by_destination).forEach(destination => {
+                const sellers = this.database.sellers_by_destination[destination];
+                if (sellers && sellers.includes(selectedSeller)) {
+                    destinations.push(destination);
+                }
+            });
+            console.log(`📍 방법2 성공: ${destinations.length}개 도착지 발견`);
+        }
+        // 방법 3: 기본 도착지 제공
+        else {
+            destinations = ['본사', '공장', '창고']; // 기본 도착지
+            console.log(`📍 방법3 기본값: ${destinations.length}개 도착지 제공`);
+        }
         
-        if (!destinations || destinations.length === 0) {
-            console.warn(`⚠️ ${selectedSeller}의 도착지가 없습니다`);
-            // 도착지가 없을 때 안내 메시지 추가
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = '도착지 정보 없음';
-            option.disabled = true;
-            destinationSelect.appendChild(option);
-            return;
+        console.log(`📍 ${selectedSeller}의 최종 도착지:`, destinations);
+        
+        if (destinations.length === 0) {
+            // 도착지가 없을 때도 기본값 제공
+            destinations = ['직접입력'];
         }
         
         // 📍 도착지 옵션 추가
@@ -552,12 +562,12 @@ class OrderSystemApp {
             destinationSelect.appendChild(option);
         });
         
-        console.log(`✅ ${selectedSeller}의 도착지 ${destinations.length}개 로드 완료`);
-        
-        // 첫 번째 도착지 자동 선택 (선택사항)
+        // 첫 번째 도착지 자동 선택
         if (destinations.length > 0) {
-            destinationSelect.selectedIndex = 1; // 첫 번째 실제 옵션 선택
+            destinationSelect.selectedIndex = 1;
         }
+        
+        console.log(`✅ ${selectedSeller}의 도착지 ${destinations.length}개 로드 완료`);
     }
 
     // 📦 품목 옵션 업데이트 (완전히 수정된 버전)

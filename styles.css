@@ -78,11 +78,20 @@ body {
 }
 
 .company-logo {
-    background: var(--bg-secondary);
-    padding: var(--spacing-xl);
-    border-radius: var(--border-radius);
-    box-shadow: var(--box-shadow);
-    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+}
+
+.logo-image {
+    max-width: 200px;
+    max-height: 120px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    margin-bottom: var(--spacing-md);
+    filter: brightness(1.1); /* 다크테마에서 밝게 */
 }
 
 .company-logo i {
@@ -570,6 +579,11 @@ body {
     .order-actions {
         flex-direction: column;
     }
+    
+    .logo-image {
+        max-width: 150px;
+        max-height: 90px;
+    }
 }
 
 /* 🎨 스크롤바 스타일 */
@@ -670,5 +684,39 @@ body {
     .radio-option {
         justify-content: flex-start;
         padding: var(--spacing-md);
+    }
+}
+
+/* 🎨 로고 호버 효과 (선택사항) */
+.logo-image:hover {
+    transform: scale(1.05);
+    transition: transform 0.3s ease;
+}
+
+/* 🏢 헤더 로고 스타일 */
+.header-logo {
+    margin-right: var(--spacing-md);
+}
+
+.header-logo-image {
+    max-width: 60px;
+    max-height: 40px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    filter: brightness(1.1);
+}
+
+.header-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+/* 📱 모바일에서 헤더 로고 숨김 */
+@media (max-width: 768px) {
+    .header-logo {
+        display: none;
     }
 }
