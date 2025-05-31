@@ -106,10 +106,17 @@
 
                             <!-- 분류 -->
                             <div class="form-group">
-                                <label for="category">📂 분류</label>
-                                <select id="category" required>
-                                    <option value="">분류 선택</option>
-                                </select>
+                                <label>📂 분류</label>
+                                <div class="category-options">
+                                    <label class="radio-option">
+                                        <input type="radio" name="category" value="설탕" id="categorySugar" checked>
+                                        <span class="radio-label">🍯 설탕</span>
+                                    </label>
+                                    <label class="radio-option">
+                                        <input type="radio" name="category" value="식품첨가물" id="categoryAdditive">
+                                        <span class="radio-label">🧪 식품첨가물</span>
+                                    </label>
+                                </div>
                             </div>
 
                             <!-- 품목 -->
