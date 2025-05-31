@@ -19,31 +19,54 @@ class OrderSystemApp {
         console.log('🚀 티알코리아 주문시스템 V2.0 초기화 시작...');
         
         try {
-            // 📱 반응형 디자인 체크
-            this.checkResponsiveDesign();
+            // 1️⃣ 기본 설정
+            this.showLoadingSpinner();
             
-            // 👥 사용자 설정 로드 (개선됨)
+            // 2️⃣ 사용자 설정 로드 (먼저)
             await this.loadUserConfig();
             
-            // 🗄️ 데이터베이스 로드
+            // 3️⃣ 데이터베이스 로드
             await this.loadDatabase();
             
-            // 🎯 이벤트 리스너 설정
+            // 4️⃣ Firebase 초기화 (선택사항)
+            if (this.isFirebaseConfigured()) {
+                await this.initializeFirebase();
+            }
+            
+            // 5️⃣ 이벤트 리스너 설정 (DOM 로드 후)
             this.setupEventListeners();
             
-            // 📅 기본값 설정
-            this.setDefaultValues();
+            // 6️⃣ 반응형 디자인 초기 체크
+            this.checkResponsiveDesign();
             
-            // 🔄 Service Worker 등록
+            // 7️⃣ PWA 설정
             this.registerServiceWorker();
             
-            // 🔐 로그인 화면 표시
-            this.showLoginScreen();
+            // 📱 반응형 디자인 초기화 (중요!)
+            this.checkResponsiveDesign();
             
+            // 📱 윈도우 리사이즈 이벤트 등록
+            let resizeTimeout;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    this.checkResponsiveDesign();
+                }, 250); // 디바운싱으로 성능 최적화
+            });
+            
+            // 📱 방향 전환 이벤트
+            window.addEventListener('orientationchange', () => {
+                setTimeout(() => {
+                    this.checkResponsiveDesign();
+                }, 500);
+            });
+            
+            this.hideLoadingSpinner();
             console.log('✅ 시스템 초기화 완료');
             
         } catch (error) {
-            console.error('❌ 시스템 초기화 실패:', error);
+            console.error('❌ 초기화 실패:', error);
+            this.hideLoadingSpinner();
             this.showNotification('시스템 초기화에 실패했습니다. 페이지를 새로고침해주세요.', 'error');
         }
     }
@@ -127,40 +150,31 @@ class OrderSystemApp {
 
     // 🎯 이벤트 리스너 설정
     setupEventListeners() {
-        console.log('🎯 이벤트 리스너 설정 중...');
+        console.log('🔗 이벤트 리스너 설정 시작...');
         
-        // 🔐 로그인 관련
+        // 🔐 로그인 버튼 이벤트 (누락된 부분 추가)
         const loginBtn = document.getElementById('loginBtn');
-        const loginPin = document.getElementById('loginPin');
-        
         if (loginBtn) {
-            loginBtn.addEventListener('click', () => this.handleLogin());
+            loginBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('🔐 로그인 버튼 클릭됨');
+                this.handleLogin();
+            });
+            console.log('✅ 로그인 버튼 이벤트 설정 완료');
+        } else {
+            console.error('❌ 로그인 버튼을 찾을 수 없습니다');
         }
         
-        if (loginPin) {
-            loginPin.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    this.handleLogin();
-                }
-            });
-        }
-
-        // 🚪 로그아웃
+        // 🚪 로그아웃 버튼 이벤트
         const logoutBtn = document.getElementById('logoutBtn');
         if (logoutBtn) {
-            logoutBtn.addEventListener('click', () => this.handleLogout());
-        }
-
-        // 🔽 네비게이션 버튼들
-        const navButtons = document.querySelectorAll('.nav-btn');
-        navButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const targetScreen = e.currentTarget.dataset.screen;
-                this.switchScreen(targetScreen);
+            logoutBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.handleLogout();
             });
-        });
-
-        // 📝 주문 폼 관련
+        }
+        
+        // 📝 주문 폼 제출 이벤트
         const orderForm = document.getElementById('orderForm');
         if (orderForm) {
             orderForm.addEventListener('submit', (e) => {
@@ -168,48 +182,55 @@ class OrderSystemApp {
                 this.handleOrderSubmit();
             });
         }
-
-        // 🔄 초기화 버튼
+        
+        // 🔄 폼 초기화 버튼
         const resetBtn = document.getElementById('resetBtn');
         if (resetBtn) {
-            resetBtn.addEventListener('click', () => this.resetOrderForm());
-        }
-
-        // 🔍 검색 기능
-        const searchInput = document.getElementById('searchInput');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                this.debounce(() => this.filterOrders(), 300);
+            resetBtn.addEventListener('click', () => {
+                this.resetOrderForm();
             });
         }
-
-        // 📊 필터 기능
-        const filterManager = document.getElementById('filterManager');
-        const filterDate = document.getElementById('filterDate');
-        const showPastOrders = document.getElementById('showPastOrders');
         
-        if (filterManager) {
-            filterManager.addEventListener('change', () => this.filterOrders());
+        // 🔽 하단 네비게이션 버튼들
+        const navBtns = document.querySelectorAll('.nav-btn');
+        navBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const screenId = btn.getAttribute('data-screen');
+                if (screenId) {
+                    this.switchScreen(screenId);
+                }
+            });
+        });
+        
+        // 📝 엔터 키로 로그인 (사용성 개선)
+        const loginPin = document.getElementById('loginPin');
+        if (loginPin) {
+            loginPin.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.handleLogin();
+                }
+            });
         }
         
-        if (filterDate) {
-            filterDate.addEventListener('change', () => this.filterOrders());
+        // 📱 리사이즈 이벤트 디바운싱
+        const debouncedResize = this.debounce(() => {
+            this.checkResponsiveDesign();
+        }, 250);
+        
+        window.addEventListener('resize', debouncedResize);
+        
+        // 🔍 검색 입력 디바운싱
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            const debouncedSearch = this.debounce((e) => {
+                this.filterOrders(e.target.value);
+            }, 300);
+            
+            searchInput.addEventListener('input', debouncedSearch);
         }
         
-        if (showPastOrders) {
-            showPastOrders.addEventListener('change', () => this.filterOrders());
-        }
-
-        // 🔗 연동 선택 (담당자 → 판매처 → 도착지 → 분류 → 품목)
-        this.setupCascadingSelects();
-
-        // 📢 알림 닫기
-        const closeNotification = document.getElementById('closeNotification');
-        if (closeNotification) {
-            closeNotification.addEventListener('click', () => this.hideNotification());
-        }
-
-        console.log('✅ 이벤트 리스너 설정 완료');
+        console.log('✅ 모든 이벤트 리스너 설정 완료');
     }
 
     // 🔐 로그인 처리
@@ -217,31 +238,49 @@ class OrderSystemApp {
         const userSelect = document.getElementById('loginUser');
         const pinInput = document.getElementById('loginPin');
         
-        const selectedUser = userSelect.value;
-        const enteredPin = pinInput.value;
+        // 🔍 요소 존재 확인
+        if (!userSelect || !pinInput) {
+            console.error('❌ 로그인 폼 요소를 찾을 수 없습니다');
+            this.showNotification('로그인 폼에 문제가 있습니다. 페이지를 새로고침해주세요.', 'error');
+            return;
+        }
+        
+        const selectedUser = userSelect.value.trim();
+        const enteredPin = pinInput.value.trim();
         
         console.log('🔐 로그인 시도:', { user: selectedUser, pin: '****' });
         
-        // 🔍 입력 검증
+        // 📝 입력 검증 강화
         if (!selectedUser) {
-            this.showNotification('담당자를 선택해주세요', 'warning');
+            this.showNotification('👤 담당자를 선택해주세요', 'warning');
+            userSelect.focus();
             return;
         }
         
-        if (!enteredPin || enteredPin.length !== 4) {
-            this.showNotification('4자리 PIN을 입력해주세요', 'warning');
+        if (!enteredPin) {
+            this.showNotification('🔑 PIN을 입력해주세요', 'warning');
+            pinInput.focus();
             return;
         }
         
-        // 🔑 사용자 인증
+        if (enteredPin.length !== 4 || !/^\d{4}$/.test(enteredPin)) {
+            this.showNotification('🔑 4자리 숫자 PIN을 입력해주세요', 'warning');
+            pinInput.select();
+            return;
+        }
+        
+        // 🔍 사용자 인증
         const user = this.users[selectedUser];
         if (!user) {
-            this.showNotification('존재하지 않는 사용자입니다', 'error');
+            console.error('❌ 존재하지 않는 사용자:', selectedUser);
+            this.showNotification('❌ 존재하지 않는 사용자입니다', 'error');
             return;
         }
         
         if (user.pin !== enteredPin) {
-            this.showNotification('PIN이 일치하지 않습니다', 'error');
+            console.warn('⚠️ PIN 불일치:', selectedUser);
+            this.showNotification('🔑 PIN이 일치하지 않습니다', 'error');
+            pinInput.select();
             return;
         }
         
@@ -249,12 +288,18 @@ class OrderSystemApp {
         this.currentUser = user;
         console.log('✅ 로그인 성공:', user.name);
         
-        // 🎯 메인 앱으로 전환
-        this.showMainApp();
-        this.showNotification(`환영합니다, ${user.name}님!`, 'success');
-        
-        // 📝 주문 폼에 기본 담당자 설정
-        this.setDefaultManager();
+        try {
+            // 🎯 메인 앱으로 전환
+            this.showMainApp();
+            this.showNotification(`👋 환영합니다, ${user.name}님!`, 'success');
+            
+            // 📝 기본 담당자 설정
+            this.setDefaultManager();
+            
+        } catch (error) {
+            console.error('❌ 메인 앱 전환 실패:', error);
+            this.showNotification('앱 전환 중 오류가 발생했습니다.', 'error');
+        }
     }
 
     // 🚪 로그아웃 처리
@@ -1256,12 +1301,18 @@ class OrderSystemApp {
     }
 
     // 🔄 디바운스 함수 (검색 최적화)
-    debounce(func, wait) {
-        if (this.debounceTimer) {
-            clearTimeout(this.debounceTimer);
-        }
-        
-        this.debounceTimer = setTimeout(func, wait);
+    debounce(func, wait, immediate) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                timeout = null;
+                if (!immediate) func(...args);
+            };
+            const callNow = immediate && !timeout;
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+            if (callNow) func(...args);
+        };
     }
 
     // 📂 현재 선택된 분류 가져오기 (디버깅 강화)
@@ -1306,37 +1357,206 @@ class OrderSystemApp {
     // 📱 반응형 디자인 체크
     checkResponsiveDesign() {
         const isMobile = window.innerWidth <= 768;
-        const isTouch = 'ontouchstart' in window;
+        const isTablet = window.innerWidth > 768 && window.innerWidth <= 1024;
+        const isDesktop = window.innerWidth > 1024;
+        const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
         
-        console.log(`📱 디바이스 정보: ${isMobile ? '모바일' : '데스크톱'}, 터치: ${isTouch ? '지원' : '미지원'}`);
+        console.log(`📱 디바이스 정보: ${
+            isMobile ? '모바일' : isTablet ? '태블릿' : '데스크톱'
+        }, 터치: ${isTouch ? '지원' : '미지원'}`);
         
-        // CSS 변수로 디바이스 정보 전달
+        // 🎯 디바이스 타입별 CSS 클래스 추가
+        const body = document.body;
+        body.classList.remove('mobile-device', 'tablet-device', 'desktop-device', 'touch-device');
+        
+        if (isMobile) {
+            body.classList.add('mobile-device');
+        } else if (isTablet) {
+            body.classList.add('tablet-device');
+        } else {
+            body.classList.add('desktop-device');
+        }
+        
+        if (isTouch) {
+            body.classList.add('touch-device');
+        }
+        
+        // 📏 CSS 변수로 디바이스 정보 전달
+        document.documentElement.style.setProperty('--viewport-width', `${window.innerWidth}px`);
+        document.documentElement.style.setProperty('--viewport-height', `${window.innerHeight}px`);
         document.documentElement.style.setProperty('--is-mobile', isMobile ? '1' : '0');
+        document.documentElement.style.setProperty('--is-tablet', isTablet ? '1' : '0');
+        document.documentElement.style.setProperty('--is-desktop', isDesktop ? '1' : '0');
         document.documentElement.style.setProperty('--is-touch', isTouch ? '1' : '0');
         
-        // 모바일에서 추가 최적화
+        // 📱 모바일에서 추가 최적화
         if (isMobile) {
-            document.body.classList.add('mobile-device');
-            
-            // iOS Safari 주소창 높이 처리
-            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                this.handleIOSViewport();
-            }
+            this.optimizeForMobile();
+        }
+        
+        // 🍎 iOS Safari 전용 처리
+        if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+            this.handleIOSViewport();
+        }
+        
+        // 🤖 안드로이드 전용 처리  
+        if (/Android/.test(navigator.userAgent)) {
+            this.handleAndroidViewport();
         }
     }
 
-    // 🍎 iOS Safari 뷰포트 처리
+    // 🍎 iOS Safari 뷰포트 처리 (개선)
     handleIOSViewport() {
+        console.log('🍎 iOS Safari 최적화 적용...');
+        
         const setViewportHeight = () => {
+            // 📏 실제 뷰포트 높이 계산
             const vh = window.innerHeight * 0.01;
             document.documentElement.style.setProperty('--vh', `${vh}px`);
+            
+            // 📱 안전 영역 계산
+            const safeAreaTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-top)')) || 0;
+            const safeAreaBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-bottom)')) || 0;
+            
+            document.documentElement.style.setProperty('--safe-area-top', `${safeAreaTop}px`);
+            document.documentElement.style.setProperty('--safe-area-bottom', `${safeAreaBottom}px`);
         };
         
         setViewportHeight();
-        window.addEventListener('resize', setViewportHeight);
-        window.addEventListener('orientationchange', () => {
+        
+        // 📱 방향 전환 및 주소창 숨김/표시 대응
+        window.addEventListener('resize', () => {
             setTimeout(setViewportHeight, 100);
         });
+        
+        window.addEventListener('orientationchange', () => {
+            setTimeout(setViewportHeight, 500);
+        });
+        
+        // 📱 iOS 키보드 처리
+        const handleIOSKeyboard = () => {
+            const focusableElements = 'input, select, textarea';
+            
+            document.addEventListener('focusin', (e) => {
+                if (e.target.matches(focusableElements)) {
+                    setTimeout(() => {
+                        e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 300);
+                }
+            });
+        };
+        
+        handleIOSKeyboard();
+    }
+
+    // 🤖 안드로이드 전용 뷰포트 처리
+    handleAndroidViewport() {
+        console.log('🤖 안드로이드 최적화 적용...');
+        
+        // 🤖 안드로이드 키보드 처리
+        const originalViewportHeight = window.innerHeight;
+        
+        const handleResize = () => {
+            const currentHeight = window.innerHeight;
+            const heightDifference = originalViewportHeight - currentHeight;
+            
+            // 키보드가 올라온 경우 (높이가 150px 이상 줄어듦)
+            if (heightDifference > 150) {
+                document.body.classList.add('keyboard-open');
+                document.documentElement.style.setProperty('--keyboard-height', `${heightDifference}px`);
+            } else {
+                document.body.classList.remove('keyboard-open');
+                document.documentElement.style.setProperty('--keyboard-height', '0px');
+            }
+        };
+        
+        window.addEventListener('resize', handleResize);
+    }
+
+    // 🍎 iOS Safari 뷰포트 처리 (개선)
+    handleIOSViewport() {
+        console.log('🍎 iOS Safari 최적화 적용...');
+        
+        const setViewportHeight = () => {
+            // 📏 실제 뷰포트 높이 계산
+            const vh = window.innerHeight * 0.01;
+            document.documentElement.style.setProperty('--vh', `${vh}px`);
+            
+            // 📱 안전 영역 계산
+            const safeAreaTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-top)')) || 0;
+            const safeAreaBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-bottom)')) || 0;
+            
+            document.documentElement.style.setProperty('--safe-area-top', `${safeAreaTop}px`);
+            document.documentElement.style.setProperty('--safe-area-bottom', `${safeAreaBottom}px`);
+        };
+        
+        setViewportHeight();
+        
+        // 📱 방향 전환 및 주소창 숨김/표시 대응
+        window.addEventListener('resize', () => {
+            setTimeout(setViewportHeight, 100);
+        });
+        
+        window.addEventListener('orientationchange', () => {
+            setTimeout(setViewportHeight, 500);
+        });
+        
+        // 📱 iOS 키보드 처리
+        const handleIOSKeyboard = () => {
+            const focusableElements = 'input, select, textarea';
+            
+            document.addEventListener('focusin', (e) => {
+                if (e.target.matches(focusableElements)) {
+                    setTimeout(() => {
+                        e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 300);
+                }
+            });
+        };
+        
+        handleIOSKeyboard();
+    }
+
+    // 📱 모바일 키보드 처리
+    handleMobileKeyboard() {
+        const inputs = document.querySelectorAll('input, select, textarea');
+        
+        inputs.forEach(input => {
+            input.addEventListener('focus', () => {
+                setTimeout(() => {
+                    input.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'center',
+                        inline: 'nearest'
+                    });
+                }, 300);
+            });
+        });
+    }
+
+    // ✅ 모바일 최적화 함수
+    optimizeForMobile() {
+        console.log('📱 모바일 최적화 적용...');
+        
+        // 📱 터치 스크롤 개선
+        document.body.style.webkitOverflowScrolling = 'touch';
+        
+        // 📱 확대/축소 방지
+        document.addEventListener('gesturestart', (e) => e.preventDefault());
+        document.addEventListener('gesturechange', (e) => e.preventDefault());
+        
+        // 📱 더블탭 확대 방지
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', (e) => {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                e.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+        
+        // 📱 키보드 올라올 때 뷰포트 조정
+        this.handleMobileKeyboard();
     }
 }
 
