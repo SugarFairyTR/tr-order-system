@@ -29,6 +29,7 @@ class OrderSystemApp {
             
             // 3️⃣ UI 초기화
             this.populateUserSelect();
+            this.populateFormSelects();
             this.setDefaultDate();
             
             console.log('✅ 앱 초기화 완료!');
@@ -63,19 +64,30 @@ class OrderSystemApp {
     // 🗄️ 데이터베이스 로드
     async loadDatabase() {
         try {
-            console.log('🗄️ 데이터베이스 로드 중...');
-            const response = await fetch('./database_optimized.json');
+            console.log('📂 데이터베이스 로드 시작...');
             
+            const response = await fetch('./database_optimized.json');
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
             this.database = await response.json();
-            console.log('✅ 데이터베이스 로드 완료');
+            console.log('✅ 데이터베이스 로드 완료:', this.database);
+            
+            // 데이터 구조 확인
+            if (this.database && this.database.sellers_by_manager) {
+                console.log('👥 담당자별 판매처 데이터 확인됨');
+            }
+            if (this.database && this.database.destinations_by_seller) {
+                console.log('📍 판매처별 도착지 데이터 확인됨');
+            }
+            if (this.database && this.database.categories) {
+                console.log('📦 분류별 품목 데이터 확인됨');
+            }
             
         } catch (error) {
             console.error('❌ 데이터베이스 로드 실패:', error);
-            this.showNotification('데이터베이스를 불러올 수 없습니다', 'error');
+            this.showNotification('데이터베이스 로드에 실패했습니다', 'error');
         }
     }
 
@@ -369,8 +381,8 @@ class OrderSystemApp {
         // 👤 담당자 옵션
         this.populateManagerSelect();
         
-        // 🍯 기본값으로 설탕 품목 로드
-        this.updateProductOptions('설탕');
+        // 🔗 연동 선택 설정
+        this.setupCascadingSelects();
         
         console.log('✅ 폼 선택 옵션 채우기 완료');
     }
@@ -378,7 +390,9 @@ class OrderSystemApp {
     // 👤 담당자 선택 옵션 채우기
     populateManagerSelect() {
         const managerSelect = document.getElementById('manager');
-        if (!managerSelect) return;
+        if (!managerSelect || !this.database || !this.database.categories) return;
+        
+        console.log('👤 담당자 옵션 채우기 시작...');
         
         // 🧹 기존 옵션 제거 (첫 번째 제외)
         while (managerSelect.children.length > 1) {
@@ -386,20 +400,26 @@ class OrderSystemApp {
         }
         
         // 👥 담당자 목록 추가
-        Object.keys(this.users).forEach(userName => {
+        const managers = this.database.categories.담당자 || [];
+        managers.forEach(manager => {
             const option = document.createElement('option');
-            option.value = userName;
-            option.textContent = userName;
+            option.value = manager;
+            option.textContent = manager;
             managerSelect.appendChild(option);
         });
+        
+        console.log(`👤 담당자 ${managers.length}명 로드 완료:`, managers);
     }
 
-    // 🔗 연동 선택 설정 수정
+    // 🔗 연동 선택 설정
     setupCascadingSelects() {
+        console.log('🔗 연동 선택 설정 시작...');
+        
         // 👥 담당자 변경 시 판매처 업데이트
         const managerSelect = document.getElementById('manager');
         if (managerSelect) {
             managerSelect.addEventListener('change', (e) => {
+                console.log(`👤 담당자 선택: ${e.target.value}`);
                 this.updateSellerOptions(e.target.value);
                 this.clearDownstreamSelects(['seller', 'destination', 'product']);
             });
@@ -409,6 +429,7 @@ class OrderSystemApp {
         const sellerSelect = document.getElementById('seller');
         if (sellerSelect) {
             sellerSelect.addEventListener('change', (e) => {
+                console.log(`🏢 판매처 선택: ${e.target.value}`);
                 this.updateDestinationOptions(e.target.value);
                 this.clearDownstreamSelects(['destination', 'product']);
             });
@@ -419,9 +440,9 @@ class OrderSystemApp {
         categoryRadios.forEach(radio => {
             radio.addEventListener('change', (e) => {
                 if (e.target.checked) {
+                    console.log(`📂 분류 선택: ${e.target.value}`);
                     this.updateProductOptions(e.target.value);
                     this.clearDownstreamSelects(['product']);
-                    console.log(`📂 분류 선택: ${e.target.value}`);
                 }
             });
         });
@@ -445,23 +466,34 @@ class OrderSystemApp {
         }
 
         // 🍯 기본값으로 설탕 선택 시 품목 로드
-        this.updateProductOptions('설탕');
+        setTimeout(() => {
+            this.updateProductOptions('설탕');
+        }, 100);
+        
+        console.log('✅ 연동 선택 설정 완료');
     }
 
-    // 🏢 판매처 옵션 업데이트 (담당자별)
+    // 🏢 판매처 옵션 업데이트
     updateSellerOptions(selectedManager) {
         const sellerSelect = document.getElementById('seller');
-        if (!sellerSelect || !this.database.sellers_by_manager) return;
+        if (!sellerSelect || !this.database || !selectedManager) return;
+        
+        console.log(`🏢 ${selectedManager}의 판매처 업데이트 시작...`);
         
         // 🧹 기존 옵션 제거 (첫 번째 제외)
         while (sellerSelect.children.length > 1) {
             sellerSelect.removeChild(sellerSelect.lastChild);
         }
         
-        if (!selectedManager) return;
+        // 📊 담당자별 판매처 가져오기
+        const sellers = this.database.sellers_by_manager?.[selectedManager] || [];
         
-        // 👥 선택된 담당자의 판매처 목록 가져오기
-        const sellers = this.database.sellers_by_manager[selectedManager] || [];
+        if (sellers.length === 0) {
+            console.warn(`⚠️ ${selectedManager}의 판매처가 없습니다`);
+            return;
+        }
+        
+        // 🏢 판매처 옵션 추가
         sellers.forEach(seller => {
             const option = document.createElement('option');
             option.value = seller;
@@ -469,23 +501,30 @@ class OrderSystemApp {
             sellerSelect.appendChild(option);
         });
         
-        console.log(`🏢 ${selectedManager}의 판매처 ${sellers.length}개 로드`);
+        console.log(`🏢 ${selectedManager}의 판매처 ${sellers.length}개 로드 완료`);
     }
 
-    // 📍 도착지 옵션 업데이트 (판매처별)
+    // 📍 도착지 옵션 업데이트
     updateDestinationOptions(selectedSeller) {
         const destinationSelect = document.getElementById('destination');
-        if (!destinationSelect || !this.database.destinations_by_seller) return;
+        if (!destinationSelect || !this.database || !selectedSeller) return;
+        
+        console.log(`📍 ${selectedSeller}의 도착지 업데이트 시작...`);
         
         // 🧹 기존 옵션 제거 (첫 번째 제외)
         while (destinationSelect.children.length > 1) {
             destinationSelect.removeChild(destinationSelect.lastChild);
         }
         
-        if (!selectedSeller) return;
+        // 📊 판매처별 도착지 가져오기
+        const destinations = this.database.destinations_by_seller?.[selectedSeller] || [];
         
-        // 📍 해당 판매처의 도착지 목록 추가
-        const destinations = this.database.destinations_by_seller[selectedSeller] || [];
+        if (destinations.length === 0) {
+            console.warn(`⚠️ ${selectedSeller}의 도착지가 없습니다`);
+            return;
+        }
+        
+        // 📍 도착지 옵션 추가
         destinations.forEach(destination => {
             const option = document.createElement('option');
             option.value = destination;
@@ -493,23 +532,30 @@ class OrderSystemApp {
             destinationSelect.appendChild(option);
         });
         
-        console.log(`📍 ${selectedSeller}의 도착지 ${destinations.length}개 로드`);
+        console.log(`📍 ${selectedSeller}의 도착지 ${destinations.length}개 로드 완료`);
     }
 
-    // 📦 품목 옵션 업데이트 (분류별)
+    // 📦 품목 옵션 업데이트
     updateProductOptions(selectedCategory) {
         const productSelect = document.getElementById('product');
-        if (!productSelect || !this.database.categories) return;
+        if (!productSelect || !this.database || !selectedCategory) return;
+        
+        console.log(`📦 ${selectedCategory}의 품목 업데이트 시작...`);
         
         // 🧹 기존 옵션 제거 (첫 번째 제외)
         while (productSelect.children.length > 1) {
             productSelect.removeChild(productSelect.lastChild);
         }
         
-        if (!selectedCategory) return;
+        // 📊 분류별 품목 가져오기
+        const products = this.database.items?.[selectedCategory] || [];
         
-        // 📦 해당 분류의 품목 목록 추가
-        const products = this.database.categories[selectedCategory] || [];
+        if (products.length === 0) {
+            console.warn(`⚠️ ${selectedCategory}의 품목이 없습니다`);
+            return;
+        }
+        
+        // 📦 품목 옵션 추가
         products.forEach(product => {
             const option = document.createElement('option');
             option.value = product;
@@ -517,7 +563,7 @@ class OrderSystemApp {
             productSelect.appendChild(option);
         });
         
-        console.log(`📦 ${selectedCategory}의 품목 ${products.length}개 로드`);
+        console.log(`📦 ${selectedCategory}의 품목 ${products.length}개 로드 완료`);
     }
 
     // 💰 천단위 콤마 포맷팅
