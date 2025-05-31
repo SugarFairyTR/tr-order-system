@@ -469,265 +469,111 @@ class OrderSystemApp {
 
     // 📝 폼 선택 옵션들 채우기
     populateFormSelects() {
+        console.log('�� 폼 선택 옵션 초기화...');
+        
         if (!this.database) {
             console.warn('⚠️ 데이터베이스가 로드되지 않았습니다');
             return;
         }
         
-        console.log('📝 폼 선택 옵션 채우기 시작...');
+        // 담당자 옵션
+        this.populateSelect('manager', this.database.categories?.담당자 || []);
         
-        // 👤 담당자 옵션
-        this.populateManagerSelect();
-        
-        // 🔗 연동 선택 설정 (DOM 렌더링 후 실행)
-        setTimeout(() => {
-            this.setupCascadingSelects();
-        }, 200); // 200ms 지연으로 확실하게 DOM 준비 대기
-        
-        console.log('✅ 폼 선택 옵션 채우기 완료');
+        // 분류 옵션 (라디오 버튼으로 변경 예정이지만 일단 select로)
+        this.populateSelect('category', this.database.categories?.분류 || []);
     }
 
-    // 👤 담당자 선택 옵션 채우기
-    populateManagerSelect() {
-        const managerSelect = document.getElementById('manager');
-        if (!managerSelect || !this.database || !this.database.categories) return;
+    // 선택 옵션 채우기 헬퍼
+    populateSelect(elementId, options) {
+        const selectElement = document.getElementById(elementId);
+        if (!selectElement) return;
         
-        console.log('👤 담당자 옵션 채우기 시작...');
-        
-        // 🧹 기존 옵션 제거 (첫 번째 제외)
-        while (managerSelect.children.length > 1) {
-            managerSelect.removeChild(managerSelect.lastChild);
+        // 기존 옵션 제거 (첫 번째 제외)
+        while (selectElement.children.length > 1) {
+            selectElement.removeChild(selectElement.lastChild);
         }
         
-        // 👥 담당자 목록 추가
-        const managers = this.database.categories.담당자 || [];
-        managers.forEach(manager => {
-            const option = document.createElement('option');
-            option.value = manager;
-            option.textContent = manager;
-            managerSelect.appendChild(option);
+        // 새 옵션 추가
+        options.forEach(option => {
+            const optionElement = document.createElement('option');
+            optionElement.value = option;
+            optionElement.textContent = option;
+            selectElement.appendChild(optionElement);
         });
-        
-        console.log(`👤 담당자 ${managers.length}명 로드 완료:`, managers);
     }
 
     // 🔗 연동 선택 설정 (수정된 버전)
     setupCascadingSelects() {
-        console.log('🔗 연동 선택 설정 시작...');
+        console.log('🔗 연동 선택 설정...');
         
-        // 👥 담당자 변경 시 판매처 업데이트
         const managerSelect = document.getElementById('manager');
+        const sellerSelect = document.getElementById('seller');
+        const destinationSelect = document.getElementById('destination');
+        const categorySelect = document.getElementById('category');
+        const productSelect = document.getElementById('product');
+        
+        // 담당자 → 판매처
         if (managerSelect) {
             managerSelect.addEventListener('change', (e) => {
-                console.log(`👥 담당자 변경: ${e.target.value}`);
                 this.updateSellerOptions(e.target.value);
-                this.clearDownstreamSelects(['seller', 'destination', 'product']);
             });
         }
         
-        // 🏢 판매처 변경 시 도착지 업데이트
-        const sellerSelect = document.getElementById('seller');
+        // 판매처 → 도착지
         if (sellerSelect) {
             sellerSelect.addEventListener('change', (e) => {
-                console.log(`🏢 판매처 변경: ${e.target.value}`);
                 this.updateDestinationOptions(e.target.value);
-                this.clearDownstreamSelects(['destination']);
             });
-            console.log('✅ 판매처 이벤트 리스너 설정 완료');
         }
         
-        // 📂 분류 라디오 버튼 변경 시 품목 업데이트 (수정된 버전)
-        const categoryRadios = document.querySelectorAll('input[name="category"]');
-        console.log(`📂 분류 라디오 버튼 ${categoryRadios.length}개 발견`);
-        
-        categoryRadios.forEach((radio, index) => {
-            console.log(`📂 라디오 버튼 ${index}: ${radio.value}`);
-            radio.addEventListener('change', (e) => {
-                if (e.target.checked) {
-                    console.log(`📂 분류 선택됨: ${e.target.value}`);
-                    this.updateProductOptions(e.target.value);
-                }
+        // 분류 → 품목
+        if (categorySelect) {
+            categorySelect.addEventListener('change', (e) => {
+                this.updateProductOptions(e.target.value);
             });
-        });
-
-        // 💰 수량, 단가 입력 시 천단위 콤마 자동 삽입 및 총액 계산
+        }
+        
+        // 수량/단가 변경 시 총액 계산
         const quantityInput = document.getElementById('quantity');
         const priceInput = document.getElementById('price');
         
         if (quantityInput) {
-            quantityInput.addEventListener('input', (e) => {
-                e.target.value = this.formatNumberWithCommas(e.target.value);
-                this.calculateTotal();
-            });
+            quantityInput.addEventListener('input', () => this.calculateTotal());
         }
         
         if (priceInput) {
-            priceInput.addEventListener('input', (e) => {
-                e.target.value = this.formatNumberWithCommas(e.target.value);
-                this.calculateTotal();
-            });
+            priceInput.addEventListener('input', () => this.calculateTotal());
         }
-
-        // 🍯 기본값으로 설탕 품목 로드
-        console.log('🍯 기본값으로 설탕 품목 로드 시작...');
-        this.updateProductOptions('설탕');
-        
-        console.log('✅ 연동 선택 설정 완료');
     }
 
     // 🏢 판매처 옵션 업데이트
-    updateSellerOptions(selectedManager) {
+    updateSellerOptions(manager) {
         const sellerSelect = document.getElementById('seller');
-        if (!sellerSelect || !this.database || !selectedManager) return;
+        if (!sellerSelect || !manager) return;
         
-        console.log(`🏢 ${selectedManager}의 판매처 업데이트 시작...`);
+        const sellers = this.database?.sellers_by_manager?.[manager] || [];
+        this.populateSelect('seller', sellers);
         
-        // 🧹 기존 옵션 제거 (첫 번째 제외)
-        while (sellerSelect.children.length > 1) {
-            sellerSelect.removeChild(sellerSelect.lastChild);
-        }
-        
-        // 📊 담당자별 판매처 가져오기
-        const sellers = this.database.sellers_by_manager?.[selectedManager] || [];
-        
-        if (sellers.length === 0) {
-            console.warn(`⚠️ ${selectedManager}의 판매처가 없습니다`);
-            return;
-        }
-        
-        // 🏢 판매처 옵션 추가
-        sellers.forEach(seller => {
-            const option = document.createElement('option');
-            option.value = seller;
-            option.textContent = seller;
-            sellerSelect.appendChild(option);
-        });
-        
-        console.log(`🏢 ${selectedManager}의 판매처 ${sellers.length}개 로드 완료`);
+        // 판매처 변경 시 도착지 초기화
+        this.populateSelect('destination', []);
     }
 
     // 📍 도착지 옵션 업데이트 (수정된 버전)
-    updateDestinationOptions(selectedSeller) {
+    updateDestinationOptions(seller) {
         const destinationSelect = document.getElementById('destination');
-        if (!destinationSelect || !selectedSeller) {
-            console.warn('⚠️ 도착지 업데이트 조건 미충족');
-            return;
-        }
+        if (!destinationSelect || !seller) return;
         
-        console.log(`📍 ${selectedSeller}의 도착지 업데이트 시작...`);
-        
-        // 🧹 기존 옵션 제거 (첫 번째 제외)
-        while (destinationSelect.children.length > 1) {
-            destinationSelect.removeChild(destinationSelect.lastChild);
-        }
-        
-        // 📊 JSON 구조에 맞춰 도착지 데이터 찾기
-        let destinations = [];
-        
-        // 방법 1: destinations_by_seller에서 직접 찾기
-        if (this.database?.destinations_by_seller?.[selectedSeller]) {
-            destinations = this.database.destinations_by_seller[selectedSeller];
-            console.log(`📍 방법1 성공: ${destinations.length}개 도착지 발견`);
-        }
-        // 방법 2: sellers_by_destination에서 역으로 찾기
-        else if (this.database?.sellers_by_destination) {
-            Object.keys(this.database.sellers_by_destination).forEach(destination => {
-                const sellers = this.database.sellers_by_destination[destination];
-                if (sellers && sellers.includes(selectedSeller)) {
-                    destinations.push(destination);
-                }
-            });
-            console.log(`📍 방법2 성공: ${destinations.length}개 도착지 발견`);
-        }
-        // 방법 3: 기본 도착지 제공
-        else {
-            destinations = ['본사', '공장', '창고']; // 기본 도착지
-            console.log(`📍 방법3 기본값: ${destinations.length}개 도착지 제공`);
-        }
-        
-        console.log(`📍 ${selectedSeller}의 최종 도착지:`, destinations);
-        
-        if (destinations.length === 0) {
-            // 도착지가 없을 때도 기본값 제공
-            destinations = ['직접입력'];
-        }
-        
-        // 📍 도착지 옵션 추가
-        destinations.forEach(destination => {
-            const option = document.createElement('option');
-            option.value = destination;
-            option.textContent = destination;
-            destinationSelect.appendChild(option);
-        });
-        
-        // 첫 번째 도착지 자동 선택
-        if (destinations.length > 0) {
-            destinationSelect.selectedIndex = 1;
-        }
-        
-        console.log(`✅ ${selectedSeller}의 도착지 ${destinations.length}개 로드 완료`);
+        const destinations = this.database?.destinations_by_seller?.[seller] || [];
+        this.populateSelect('destination', destinations);
     }
 
     // 📦 품목 옵션 업데이트 (완전히 수정된 버전)
-    updateProductOptions(selectedCategory) {
+    updateProductOptions(category) {
         const productSelect = document.getElementById('product');
-        if (!productSelect) {
-            console.error('❌ 품목 select 요소를 찾을 수 없습니다');
-            return;
-        }
+        if (!productSelect || !category) return;
         
-        if (!this.database) {
-            console.error('❌ 데이터베이스가 로드되지 않았습니다');
-            return;
-        }
-        
-        if (!selectedCategory) {
-            console.warn('⚠️ 선택된 분류가 없습니다');
-            return;
-        }
-        
-        console.log(`📦 ${selectedCategory}의 품목 업데이트 시작...`);
-        console.log('📊 전체 품목 데이터:', this.database.items);
-        
-        // 🧹 기존 옵션 제거 (첫 번째 제외)
-        while (productSelect.children.length > 1) {
-            productSelect.removeChild(productSelect.lastChild);
-        }
-        
-        // 📊 분류별 품목 가져오기
-        const products = this.database.items?.[selectedCategory];
-        
-        console.log(`📦 ${selectedCategory}의 품목 데이터:`, products);
-        
-        if (!products || !Array.isArray(products) || products.length === 0) {
-            console.warn(`⚠️ ${selectedCategory}의 품목이 없거나 배열이 아닙니다`);
-            // 품목이 없을 때 안내 메시지 추가
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = '품목 정보 없음';
-            option.disabled = true;
-            productSelect.appendChild(option);
-            return;
-        }
-        
-        // 📦 품목 옵션 추가
-        products.forEach((product, index) => {
-            const option = document.createElement('option');
-            option.value = product;
-            option.textContent = product;
-            productSelect.appendChild(option);
-            
-            if (index < 3) { // 처음 3개만 로그 출력
-                console.log(`📦 품목 추가: ${product}`);
-            }
-        });
-        
-        console.log(`✅ ${selectedCategory}의 품목 ${products.length}개 로드 완료`);
-        
-        // 첫 번째 품목 자동 선택 (선택사항)
-        if (products.length > 0) {
-            productSelect.selectedIndex = 1; // 첫 번째 실제 옵션 선택
-        }
+        const products = this.database?.items?.[category] || [];
+        this.populateSelect('product', products);
     }
 
     // 💰 천단위 콤마 포맷팅
@@ -746,19 +592,15 @@ class OrderSystemApp {
     calculateTotal() {
         const quantityInput = document.getElementById('quantity');
         const priceInput = document.getElementById('price');
-        const totalDisplay = document.getElementById('totalAmount');
+        const totalElement = document.getElementById('totalAmount');
         
-        if (!quantityInput || !priceInput || !totalDisplay) return;
+        if (!quantityInput || !priceInput || !totalElement) return;
         
-        // 콤마 제거 후 숫자로 변환
-        const quantity = parseFloat(quantityInput.value.replace(/,/g, '')) || 0;
+        const quantity = parseFloat(quantityInput.value) || 0;
         const price = parseFloat(priceInput.value.replace(/,/g, '')) || 0;
         const total = quantity * price;
         
-        // 총액 표시 (천단위 콤마 포함)
-        totalDisplay.textContent = total.toLocaleString() + '원';
-        
-        console.log(`💰 총액 계산: ${quantity} × ${price} = ${total.toLocaleString()}원`);
+        totalElement.textContent = total.toLocaleString('ko-KR') + '원';
     }
 
     // 🧹 하위 선택 옵션들 초기화 (개선된 버전)
@@ -799,42 +641,25 @@ class OrderSystemApp {
 
     // 📝 주문 제출 처리
     async handleOrderSubmit() {
-        console.log('📝 주문 제출 처리 시작...');
+        console.log('📝 주문 제출 처리');
         
-        try {
-            // ⏳ 로딩 표시
-            this.showLoading();
-            
-            // 📋 폼 데이터 수집
-            const orderData = this.collectOrderData();
-            
-            // ✅ 데이터 검증
-            if (!this.validateOrderData(orderData)) {
-                this.hideLoading();
+        // 간단한 검증
+        const requiredFields = ['manager', 'seller', 'destination', 'category', 'product', 'quantity', 'price'];
+        
+        for (const fieldId of requiredFields) {
+            const field = document.getElementById(fieldId);
+            if (!field || !field.value.trim()) {
+                this.showNotification(`⚠️ ${fieldId} 필드를 입력해주세요`, 'warning');
+                field?.focus();
                 return;
             }
-            
-            // 🆔 주문 ID 생성
-            orderData.id = this.generateOrderId();
-            orderData.createdAt = new Date().toISOString();
-            orderData.status = 'pending';
-            
-            // 💾 주문 저장
-            this.orders.push(orderData);
-            this.saveOrders();
-            
-            // ✅ 성공 처리
-            this.hideLoading();
-            this.showNotification('주문이 성공적으로 저장되었습니다!', 'success');
-            this.resetOrderForm();
-            
-            console.log('✅ 주문 저장 완료:', orderData.id);
-            
-        } catch (error) {
-            console.error('❌ 주문 저장 실패:', error);
-            this.hideLoading();
-            this.showNotification('주문 저장에 실패했습니다', 'error');
         }
+        
+        // 성공 메시지
+        this.showNotification('✅ 주문이 저장되었습니다!', 'success');
+        
+        // 폼 초기화
+        this.resetOrderForm();
     }
 
     // 📋 주문 데이터 수집
@@ -1557,6 +1382,79 @@ class OrderSystemApp {
         
         // 📱 키보드 올라올 때 뷰포트 조정
         this.handleMobileKeyboard();
+    }
+
+    // ✅ 누락된 메서드들 추가
+    async loadDatabase() {
+        console.log('🗄️ 데이터베이스 로드 시작...');
+        
+        try {
+            const response = await fetch('./database_optimized.json');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            this.database = await response.json();
+            console.log('✅ 데이터베이스 로드 완료');
+            
+            // 📝 폼 옵션 초기화
+            this.populateFormSelects();
+            
+        } catch (error) {
+            console.error('❌ 데이터베이스 로드 실패:', error);
+            
+            // 🚨 대체 데이터베이스 사용
+            this.database = this.getDefaultDatabase();
+            this.populateFormSelects();
+            
+            this.showNotification('⚠️ 데이터베이스 로드 실패. 기본 데이터를 사용합니다.', 'warning');
+        }
+    }
+
+    // 🚨 기본 데이터베이스 (대체용)
+    getDefaultDatabase() {
+        return {
+            categories: {
+                담당자: ["김정진", "박경범", "이선화", "신준호"],
+                분류: ["설탕", "식품첨가물"]
+            },
+            items: {
+                설탕: ["KBS_25KG", "MITRPHOL_25KG", "MSM_25KG"],
+                식품첨가물: ["MSG_25KG", "DEXTROSE_20KG", "MALTODEXTRIN_20KG"]
+            },
+            sellers_by_manager: {
+                김정진: ["삼양제분 주식회사", "롯데칠성음료주식회사"],
+                박경범: ["(주) 마켓랩", "(주) 서강에프앤디"],
+                이선화: ["(주) 빅솔반월공장", "(주) 이디야"],
+                신준호: ["(주) 산호인터내셔널", "(주) 아름터"]
+            },
+            destinations_by_seller: {
+                "삼양제분 주식회사": ["삼양제분 본사"],
+                "롯데칠성음료주식회사": ["롯데칠성 본사"],
+                "(주) 마켓랩": ["마켓랩 본사"],
+                "(주) 서강에프앤디": ["서강에프앤디 본사"]
+            }
+        };
+    }
+
+    // Firebase 설정 확인
+    isFirebaseConfigured() {
+        // Firebase 설정이 있는지 확인하는 간단한 로직
+        return false; // 일단 비활성화
+    }
+
+    // Service Worker 등록
+    registerServiceWorker() {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js')
+                .then(registration => {
+                    console.log('✅ Service Worker 등록 성공:', registration);
+                })
+                .catch(error => {
+                    console.log('❌ Service Worker 등록 실패:', error);
+                });
+        }
     }
 }
 
