@@ -246,33 +246,33 @@ class OrderApp {
     }
 
     async init() {
+        console.log('🔧 OrderApp 초기화 중...');
+        
         try {
-            console.log('🚀 앱 초기화 시작...');
-            
-            // 사용자 설정 로드
+            // 1. 사용자 설정 로드 (가장 먼저)
             await this.loadUserConfig();
             
-            // 로그인 상태 확인
-            this.checkLoginStatus();
+            // 2. 데이터베이스 로드
+            await this.loadDatabase();
             
-            // 로그인되지 않은 경우 로그인 화면 표시
-            if (!this.isLoggedIn) {
-                this.showLoginScreen();
-                this.setupLoginEventListeners();
-                return;
-            }
+            // 3. Firebase 초기화 (있는 경우)
+            await this.initializeFirebase();
             
-            // 로그인된 경우 메인 앱 초기화
-            await this.initMainApp();
+            // 4. 이벤트 리스너 설정
+            this.setupEventListeners();
+            this.setupLoginEventListeners();
             
-            // 네비게이션 매니저 초기화 (마지막에)
-            setTimeout(() => {
-                this.navigationManager = new NavigationManager(this);
-                console.log('✅ 네비게이션 매니저 초기화 완료');
-            }, 1000);
+            // 5. 세션 복구 시도
+            this.restoreSession();
+            
+            // 6. UI 초기화
+            this.initializeUI();
+            
+            console.log('✅ OrderApp 초기화 완료');
             
         } catch (error) {
-            console.error('❌ 앱 초기화 실패:', error);
+            console.error('❌ OrderApp 초기화 실패:', error);
+            this.showNotification('앱 초기화에 실패했습니다', 'error');
         }
     }
     
@@ -3327,6 +3327,146 @@ class OrderApp {
         listContainer.innerHTML = html;
     }
 
+    // 세션 복구 함수 추가
+    restoreSession() {
+        try {
+            const savedUser = sessionStorage.getItem('currentUser');
+            const loginTime = sessionStorage.getItem('loginTime');
+            
+            if (savedUser && loginTime) {
+                const user = JSON.parse(savedUser);
+                const timeDiff = Date.now() - parseInt(loginTime);
+                
+                // 1시간 이내면 세션 복구
+                if (timeDiff < 3600000) {
+                    console.log('🔄 세션 복구 중...');
+                    this.currentUser = user;
+                    this.isLoggedIn = true;
+                    this.hideLoginScreen();
+                    this.showMainApp();
+                    this.updateUserDisplay();
+                    this.setupSessionTimeout();
+                    console.log('✅ 세션 복구 완료');
+                    return true;
+                }
+            }
+            
+            // 세션이 없거나 만료된 경우
+            this.showLoginScreen();
+            return false;
+            
+        } catch (error) {
+            console.error('❌ 세션 복구 실패:', error);
+            this.showLoginScreen();
+            return false;
+        }
+    }
+
+    // UI 초기화 함수 추가
+    initializeUI() {
+        // 로딩 화면 숨기기
+        const loadingScreen = document.getElementById('loadingScreen');
+        if (loadingScreen) {
+            loadingScreen.style.display = 'none';
+        }
+        
+        // 현재 날짜 설정
+        const arrivalDateInput = document.getElementById('arrivalDate');
+        if (arrivalDateInput) {
+            const today = new Date().toISOString().split('T')[0];
+            arrivalDateInput.value = today;
+        }
+        
+        console.log('✅ UI 초기화 완료');
+    }
+
+    // 전역 에러 핸들러 추가
+    setupGlobalErrorHandlers() {
+        // 처리되지 않은 Promise 거부
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('❌ 처리되지 않은 Promise 거부:', event.reason);
+            this.showNotification('예상치 못한 오류가 발생했습니다', 'error');
+            event.preventDefault();
+        });
+        
+        // 일반 JavaScript 오류
+        window.addEventListener('error', (event) => {
+            console.error('❌ JavaScript 오류:', event.error);
+            this.showNotification('스크립트 오류가 발생했습니다', 'error');
+        });
+        
+        console.log('✅ 전역 에러 핸들러 설정 완료');
+    }
+
+    // showNotification 함수 개선
+    showNotification(message, type = 'info', duration = 3000) {
+        console.log(`📢 알림 [${type.toUpperCase()}]: ${message}`);
+        
+        // 기존 알림 제거
+        const existingNotification = document.querySelector('.notification');
+        if (existingNotification) {
+            existingNotification.remove();
+        }
+        
+        // 새 알림 생성
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <i class="fas fa-${this.getNotificationIcon(type)}"></i>
+                <span>${message}</span>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        // 스타일 적용
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            max-width: 400px;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideInRight 0.3s ease;
+        `;
+        
+        // 타입별 색상 적용
+        const colors = {
+            success: '#4CAF50',
+            error: '#f44336', 
+            warning: '#ff9800',
+            info: '#2196F3'
+        };
+        
+        notification.style.backgroundColor = colors[type] || colors.info;
+        notification.style.color = 'white';
+        
+        document.body.appendChild(notification);
+        
+        // 자동 제거
+        if (duration > 0) {
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, duration);
+        }
+    }
+
+    // 알림 아이콘 헬퍼 함수
+    getNotificationIcon(type) {
+        const icons = {
+            success: 'check-circle',
+            error: 'exclamation-circle',
+            warning: 'exclamation-triangle', 
+            info: 'info-circle'
+        };
+        return icons[type] || icons.info;
+    }
 }
 
 // 앱 초기화 (파일 맨 아래)
@@ -3337,15 +3477,32 @@ document.addEventListener('DOMContentLoaded', async function() {
         // OrderApp 인스턴스 생성
         window.orderApp = new OrderApp();
         
-        // 사용자 설정 먼저 로드
-        await window.orderApp.loadUserConfig();
+        // 전역 에러 핸들러 설정
+        window.orderApp.setupGlobalErrorHandlers();
         
-        // 나머지 초기화
+        // 앱 초기화
         await window.orderApp.init();
         
         console.log('🎉 앱 초기화 완료!');
+        
     } catch (error) {
         console.error('❌ 앱 초기화 실패:', error);
+        
+        // 긴급 알림 표시
+        const errorDiv = document.createElement('div');
+        errorDiv.innerHTML = `
+            <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                        background: #f44336; color: white; padding: 2rem; border-radius: 8px; 
+                        text-align: center; z-index: 10000;">
+                <h3>앱 초기화 실패</h3>
+                <p>페이지를 새로고침해주세요</p>
+                <button onclick="location.reload()" style="background: white; color: #f44336; 
+                        border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">
+                    새로고침
+                </button>
+            </div>
+        `;
+        document.body.appendChild(errorDiv);
     }
 });
 
