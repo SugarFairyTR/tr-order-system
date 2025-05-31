@@ -551,20 +551,184 @@ class OrderApp {
 
     // 로그인 화면 표시
     showLoginScreen() {
-        document.getElementById('loginScreen').classList.add('active');
-        document.getElementById('mainApp').classList.add('hidden');
+        const loginScreen = document.getElementById('loginScreen');
+        const mainApp = document.querySelector('.main-app');
+        
+        if (loginScreen) {
+            loginScreen.classList.add('active');
+            loginScreen.classList.remove('hidden');
+            loginScreen.style.display = 'flex';
+        }
+        
+        if (mainApp) {
+            mainApp.classList.add('hidden');
+            mainApp.style.display = 'none';
+        }
+        
+        console.log('🔐 로그인 화면 표시');
+    }
+
+    // 로그인 화면 숨기기 (누락된 함수 추가)
+    hideLoginScreen() {
+        const loginScreen = document.getElementById('loginScreen');
+        if (loginScreen) {
+            loginScreen.classList.remove('active');
+            loginScreen.classList.add('hidden');
+            loginScreen.style.display = 'none';
+        }
+        console.log('🔒 로그인 화면 숨김');
     }
 
     // 메인 앱 표시
     showMainApp() {
-        document.getElementById('loginScreen').classList.remove('active');
-        document.getElementById('mainApp').classList.remove('hidden');
+        const mainApp = document.querySelector('.main-app');
+        const loginScreen = document.getElementById('loginScreen');
         
-        // 사용자 이름 표시
-        const currentUserElement = document.getElementById('currentUser');
-        if (currentUserElement && this.currentUser) {
-            currentUserElement.textContent = `${this.currentUser.name} (${this.currentUser.role})`;
+        if (mainApp) {
+            mainApp.classList.remove('hidden');
+            mainApp.style.display = 'block';
         }
+        
+        if (loginScreen) {
+            loginScreen.classList.remove('active');
+            loginScreen.classList.add('hidden');
+            loginScreen.style.display = 'none';
+        }
+        
+        console.log('📱 메인 앱 표시');
+    }
+
+    // 사용자 표시 업데이트
+    updateUserDisplay() {
+        if (!this.currentUser) return;
+        
+        const userNameElements = document.querySelectorAll('.current-user, .user-name');
+        userNameElements.forEach(element => {
+            if (element) {
+                element.textContent = this.currentUser.name;
+            }
+        });
+        
+        console.log('👤 사용자 표시 업데이트:', this.currentUser.name);
+    }
+
+    // 세션 타임아웃 설정
+    setupSessionTimeout() {
+        // 기존 타임아웃 제거
+        if (this.sessionTimeout) {
+            clearTimeout(this.sessionTimeout);
+        }
+        
+        // 1시간 후 자동 로그아웃
+        this.sessionTimeout = setTimeout(() => {
+            this.showNotification('세션이 만료되었습니다. 다시 로그인해주세요.', 'warning');
+            this.logout();
+        }, 3600000); // 1시간
+        
+        console.log('⏰ 세션 타임아웃 설정 완료 (1시간)');
+    }
+
+    // 로그아웃
+    logout() {
+        console.log('👋 로그아웃 시작...');
+        
+        // 사용자 정보 초기화
+        this.currentUser = null;
+        this.isLoggedIn = false;
+        
+        // UserManager 로그아웃
+        if (this.userManager) {
+            this.userManager.logout();
+        }
+        
+        // 세션 타임아웃 제거
+        if (this.sessionTimeout) {
+            clearTimeout(this.sessionTimeout);
+            this.sessionTimeout = null;
+        }
+        
+        // UI 업데이트
+        this.showLoginScreen();
+        
+        // 입력 필드 초기화
+        const loginPin = document.getElementById('loginPin');
+        const loginManager = document.getElementById('loginManager');
+        
+        if (loginPin) loginPin.value = '';
+        if (loginManager) loginManager.selectedIndex = 0;
+        
+        this.showNotification('로그아웃되었습니다', 'info');
+        console.log('✅ 로그아웃 완료');
+    }
+
+    // 알림 표시 함수 개선
+    showNotification(message, type = 'info', duration = 3000) {
+        console.log(`📢 알림 [${type.toUpperCase()}]: ${message}`);
+        
+        // 기존 알림 제거
+        const existingNotification = document.querySelector('.notification');
+        if (existingNotification) {
+            existingNotification.remove();
+        }
+        
+        // 새 알림 생성
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+            <div class="notification-content">
+                <i class="fas fa-${this.getNotificationIcon(type)}"></i>
+                <span>${message}</span>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        // 스타일 적용
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            max-width: 400px;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideInRight 0.3s ease;
+            color: white;
+        `;
+        
+        // 타입별 색상 적용
+        const colors = {
+            success: '#4CAF50',
+            error: '#f44336', 
+            warning: '#ff9800',
+            info: '#2196F3'
+        };
+        
+        notification.style.backgroundColor = colors[type] || colors.info;
+        
+        document.body.appendChild(notification);
+        
+        // 자동 제거
+        if (duration > 0) {
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, duration);
+        }
+    }
+
+    // 알림 아이콘 헬퍼 함수
+    getNotificationIcon(type) {
+        const icons = {
+            success: 'check-circle',
+            error: 'exclamation-circle',
+            warning: 'exclamation-triangle', 
+            info: 'info-circle'
+        };
+        return icons[type] || icons.info;
     }
 
     // 로그인 이벤트 리스너 설정
@@ -664,25 +828,6 @@ class OrderApp {
         
         this.showNotification(`${user.name}님, 환영합니다!`, 'success');
         console.log('🎉 로그인 프로세스 완료');
-    }
-
-    // 로그아웃 처리
-    handleLogout() {
-        if (confirm('로그아웃 하시겠습니까?')) {
-            this.currentUser = null;
-            this.isLoggedIn = false;
-            localStorage.removeItem('trkorea_login');
-            
-            this.showNotification('로그아웃되었습니다.', 'success');
-            
-            // 로그인 화면으로 전환
-            this.showLoginScreen();
-            
-            // 페이지 새로고침
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-        }
     }
 
     // API 호출 헬퍼 메서드
@@ -3397,76 +3542,6 @@ class OrderApp {
         
         console.log('✅ 전역 에러 핸들러 설정 완료');
     }
-
-    // showNotification 함수 개선
-    showNotification(message, type = 'info', duration = 3000) {
-        console.log(`📢 알림 [${type.toUpperCase()}]: ${message}`);
-        
-        // 기존 알림 제거
-        const existingNotification = document.querySelector('.notification');
-        if (existingNotification) {
-            existingNotification.remove();
-        }
-        
-        // 새 알림 생성
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-        notification.innerHTML = `
-            <div class="notification-content">
-                <i class="fas fa-${this.getNotificationIcon(type)}"></i>
-                <span>${message}</span>
-                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-        `;
-        
-        // 스타일 적용
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 10000;
-            max-width: 400px;
-            padding: 1rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            animation: slideInRight 0.3s ease;
-        `;
-        
-        // 타입별 색상 적용
-        const colors = {
-            success: '#4CAF50',
-            error: '#f44336', 
-            warning: '#ff9800',
-            info: '#2196F3'
-        };
-        
-        notification.style.backgroundColor = colors[type] || colors.info;
-        notification.style.color = 'white';
-        
-        document.body.appendChild(notification);
-        
-        // 자동 제거
-        if (duration > 0) {
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.remove();
-                }
-            }, duration);
-        }
-    }
-
-    // 알림 아이콘 헬퍼 함수
-    getNotificationIcon(type) {
-        const icons = {
-            success: 'check-circle',
-            error: 'exclamation-circle',
-            warning: 'exclamation-triangle', 
-            info: 'info-circle'
-        };
-        return icons[type] || icons.info;
-    }
 }
 
 // 앱 초기화 (파일 맨 아래)
@@ -3684,7 +3759,6 @@ class NavigationManager {
             button.style.background = '#2196F3';
             button.style.color = 'white';
             button.style.opacity = '1';
-            console.log(`🎯 버튼 활성화: ${screenId}`);
         }
     }
     
@@ -3705,8 +3779,6 @@ class NavigationManager {
             case 'settings':
                 this.app.showSettings();
                 break;
-            default:
-                console.warn(`⚠️ 알 수 없는 화면: ${screenId}`);
         }
     }
     
@@ -3720,7 +3792,8 @@ class NavigationManager {
 
 // UserManager 클래스 정의 (OrderApp 클래스 위에 추가)
 class UserManager {
-    constructor() {
+    constructor(app) {  // app 매개변수 추가
+        this.app = app;
         this.users = {};
         this.currentUser = null;
         console.log('👥 UserManager 초기화 완료');
