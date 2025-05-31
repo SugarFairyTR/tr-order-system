@@ -309,13 +309,20 @@ class OrderApp {
         try {
             console.log('📂 사용자 설정 로드 시작...');
             
+            // UserManager를 통해 사용자 데이터 로드
+            const success = await this.userManager.loadUsers();
+            if (!success) {
+                throw new Error('UserManager 로드 실패');
+            }
+            
+            // 기본 설정도 로드
             const response = await fetch('./user_config.json');
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
             this.userConfig = await response.json();
-            console.log('✅ 사용자 설정 로드 완료:', this.userConfig);
+            console.log('✅ 사용자 설정 로드 완료');
             
             // 로그인 화면의 담당자 목록 업데이트
             this.updateLoginManagerOptions();
@@ -331,22 +338,23 @@ class OrderApp {
     // 로그인 화면 담당자 옵션 업데이트
     updateLoginManagerOptions() {
         const loginManager = document.getElementById('loginManager');
-        if (!loginManager || !this.userConfig?.users) return;
+        if (!loginManager) return;
         
         // 기존 옵션 제거 (첫 번째 옵션 제외)
         while (loginManager.children.length > 1) {
             loginManager.removeChild(loginManager.lastChild);
         }
         
-        // 사용자 목록 추가
-        Object.keys(this.userConfig.users).forEach(userName => {
+        // UserManager에서 사용자 목록 가져오기
+        const userList = this.userManager.getUserList();
+        userList.forEach(userName => {
             const option = document.createElement('option');
             option.value = userName;
             option.textContent = userName;
             loginManager.appendChild(option);
         });
         
-        console.log('✅ 로그인 담당자 옵션 업데이트 완료');
+        console.log('✅ 로그인 담당자 옵션 업데이트 완료:', userList);
     }
 
     // 로그인 화면 동적 업데이트
@@ -627,31 +635,11 @@ class OrderApp {
             return;
         }
         
-        // 사용자 설정 확인
-        if (!this.userConfig || !this.userConfig.users) {
-            console.error('❌ 사용자 설정이 로드되지 않았습니다');
-            this.showNotification('사용자 설정을 불러올 수 없습니다', 'error');
-            return;
-        }
+        // UserManager를 통한 인증
+        const user = this.userManager.authenticateUser(selectedManager, enteredPin);
         
-        // 사용자 인증
-        const user = this.userConfig.users[selectedManager];
         if (!user) {
-            console.error('❌ 사용자를 찾을 수 없습니다:', selectedManager);
-            this.showNotification('등록되지 않은 사용자입니다', 'error');
-            return;
-        }
-        
-        console.log('👤 찾은 사용자:', { name: user.name, role: user.role });
-        console.log('🔑 PIN 비교:', { 
-            입력된PIN: enteredPin, 
-            등록된PIN: user.pin,
-            일치여부: user.pin === enteredPin 
-        });
-        
-        if (user.pin !== enteredPin) {
-            console.error('❌ PIN 번호가 일치하지 않습니다');
-            this.showNotification('PIN 번호가 올바르지 않습니다', 'error');
+            this.showNotification('담당자 또는 PIN 번호가 올바르지 않습니다', 'error');
             pinInput.value = '';
             pinInput.focus();
             return;
@@ -661,10 +649,6 @@ class OrderApp {
         console.log('✅ 로그인 성공!');
         this.currentUser = user;
         this.isLoggedIn = true;
-        
-        // 로그인 시간 업데이트
-        user.last_login = new Date().toISOString();
-        await this.saveUserConfig();
         
         // 세션 저장
         sessionStorage.setItem('currentUser', JSON.stringify(user));
@@ -3345,10 +3329,24 @@ class OrderApp {
 
 }
 
-// 앱 초기화
-let app; // 전역 변수로 선언
-document.addEventListener('DOMContentLoaded', () => {
-    app = new OrderApp(); // 전역 변수에 할당
+// 앱 초기화 (파일 맨 아래)
+document.addEventListener('DOMContentLoaded', async function() {
+    console.log('📱 DOM 로드 완료, 앱 초기화 시작...');
+    
+    try {
+        // OrderApp 인스턴스 생성
+        window.orderApp = new OrderApp();
+        
+        // 사용자 설정 먼저 로드
+        await window.orderApp.loadUserConfig();
+        
+        // 나머지 초기화
+        await window.orderApp.init();
+        
+        console.log('🎉 앱 초기화 완료!');
+    } catch (error) {
+        console.error('❌ 앱 초기화 실패:', error);
+    }
 });
 
 // 버튼 클릭 테스트용 글로벌 함수
@@ -3560,5 +3558,71 @@ class NavigationManager {
         console.log('🔄 네비게이션 강제 새로고침');
         this.setupNavigation();
         this.bindEvents();
+    }
+}
+
+// UserManager 클래스 정의 (OrderApp 클래스 위에 추가)
+class UserManager {
+    constructor() {
+        this.users = {};
+        this.currentUser = null;
+    }
+
+    // 사용자 데이터 로드
+    async loadUsers() {
+        try {
+            console.log('👥 사용자 데이터 로드 중...');
+            const response = await fetch('./user_config.json');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const config = await response.json();
+            this.users = config.users || {};
+            
+            console.log('✅ 사용자 데이터 로드 완료:', Object.keys(this.users));
+            return true;
+        } catch (error) {
+            console.error('❌ 사용자 데이터 로드 실패:', error);
+            return false;
+        }
+    }
+
+    // 사용자 인증
+    authenticateUser(username, pin) {
+        console.log('🔐 사용자 인증 시도:', { username, pin: '****' });
+        
+        const user = this.users[username];
+        if (!user) {
+            console.error('❌ 사용자를 찾을 수 없음:', username);
+            return null;
+        }
+
+        if (user.pin !== pin) {
+            console.error('❌ PIN 불일치');
+            return null;
+        }
+
+        console.log('✅ 사용자 인증 성공');
+        this.currentUser = user;
+        return user;
+    }
+
+    // 현재 사용자 가져오기
+    getCurrentUser() {
+        return this.currentUser;
+    }
+
+    // 사용자 목록 가져오기
+    getUserList() {
+        return Object.keys(this.users);
+    }
+
+    // 로그아웃
+    logout() {
+        this.currentUser = null;
+        sessionStorage.removeItem('currentUser');
+        sessionStorage.removeItem('loginTime');
+        console.log('👋 사용자 로그아웃 완료');
     }
 }
