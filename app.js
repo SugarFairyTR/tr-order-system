@@ -3723,12 +3723,13 @@ class UserManager {
     constructor() {
         this.users = {};
         this.currentUser = null;
+        console.log('👥 UserManager 초기화 완료');
     }
 
     // 사용자 데이터 로드
     async loadUsers() {
         try {
-            console.log('👥 사용자 데이터 로드 중...');
+            console.log('📂 사용자 데이터 로드 중...');
             const response = await fetch('./user_config.json');
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
