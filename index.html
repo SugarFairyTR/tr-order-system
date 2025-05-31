@@ -15,6 +15,9 @@
     <!-- 스타일 및 아이콘 -->
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <!-- ✅ (추가) PWA 권고 meta -->
+    <meta name="mobile-web-app-capable" content="yes">
 </head>
 <body>
     <div id="app" class="app-container">
@@ -197,15 +200,6 @@
     <!-- 📢 알림 -->
     <div id="notification" class="notification"></div>
 
-    <script>
-        console.log('✅ 티알코리아 주문시스템 V2.0 스크립트 로드 완료');
-        
-        // DOM 로드 완료 시 앱 초기화
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('🚀 DOM 로드 완료 - 앱 초기화 시작');
-            window.orderApp = new OrderSystemApp();
-        });
-    </script>
     <script src="app.js"></script>
 </body>
 </html>

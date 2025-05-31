@@ -8,7 +8,9 @@ const urlsToCache = [
   './manifest.json',
   './user_config.json',
   './database_optimized.json',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'
+  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
+  './assets/icon-192.png',
+  './assets/icon-512.png'
 ];
 
 // 📦 설치 이벤트
