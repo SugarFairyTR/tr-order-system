@@ -307,25 +307,46 @@ class OrderApp {
     // 사용자 설정 로드
     async loadUserConfig() {
         try {
-            console.log('👥 사용자 설정 로드 중...');
+            console.log('📂 사용자 설정 로드 시작...');
             
             const response = await fetch('./user_config.json');
-            this.userConfig = await response.json();
-            
-            // 사용자 관리자와 동기화
-            if (this.userManager) {
-                await this.userManager.loadUsers();
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            console.log('✅ 사용자 설정 로드 완료');
+            this.userConfig = await response.json();
+            console.log('✅ 사용자 설정 로드 완료:', this.userConfig);
             
-            // 로그인 화면 업데이트
-            this.updateLoginScreen();
+            // 로그인 화면의 담당자 목록 업데이트
+            this.updateLoginManagerOptions();
             
+            return true;
         } catch (error) {
             console.error('❌ 사용자 설정 로드 실패:', error);
-            this.userConfig = { users: {}, settings: {}, security: {} };
+            this.showNotification('사용자 설정을 불러올 수 없습니다', 'error');
+            return false;
         }
+    }
+
+    // 로그인 화면 담당자 옵션 업데이트
+    updateLoginManagerOptions() {
+        const loginManager = document.getElementById('loginManager');
+        if (!loginManager || !this.userConfig?.users) return;
+        
+        // 기존 옵션 제거 (첫 번째 옵션 제외)
+        while (loginManager.children.length > 1) {
+            loginManager.removeChild(loginManager.lastChild);
+        }
+        
+        // 사용자 목록 추가
+        Object.keys(this.userConfig.users).forEach(userName => {
+            const option = document.createElement('option');
+            option.value = userName;
+            option.textContent = userName;
+            loginManager.appendChild(option);
+        });
+        
+        console.log('✅ 로그인 담당자 옵션 업데이트 완료');
     }
 
     // 로그인 화면 동적 업데이트
@@ -540,69 +561,125 @@ class OrderApp {
 
     // 로그인 이벤트 리스너 설정
     setupLoginEventListeners() {
+        console.log('🔧 로그인 이벤트 리스너 설정 중...');
+        
         const loginBtn = document.getElementById('loginBtn');
         const loginPin = document.getElementById('loginPin');
-        const logoutBtn = document.getElementById('logoutBtn');
-
+        const loginManager = document.getElementById('loginManager');
+        
         if (loginBtn) {
-            loginBtn.addEventListener('click', () => this.handleLogin());
+            // 기존 이벤트 리스너 제거
+            loginBtn.removeEventListener('click', this.handleLogin.bind(this));
+            
+            // 새 이벤트 리스너 추가
+            loginBtn.addEventListener('click', this.handleLogin.bind(this));
+            console.log('✅ 로그인 버튼 이벤트 리스너 추가됨');
         }
-
+        
         if (loginPin) {
+            // Enter 키 이벤트 추가
             loginPin.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     this.handleLogin();
                 }
             });
-        }
-
-        if (logoutBtn) {
-            logoutBtn.addEventListener('click', () => this.handleLogout());
+            console.log('✅ PIN 입력 Enter 키 이벤트 추가됨');
         }
     }
 
-    // 로그인 처리
+    // 로그인 처리 함수
     async handleLogin() {
+        console.log('🔐 로그인 시도 시작...');
+        
         const managerSelect = document.getElementById('loginManager');
         const pinInput = document.getElementById('loginPin');
         
-        const selectedManager = managerSelect.value;
-        const enteredPin = pinInput.value;
-
+        if (!managerSelect || !pinInput) {
+            console.error('❌ 로그인 요소를 찾을 수 없습니다');
+            this.showNotification('로그인 폼을 찾을 수 없습니다', 'error');
+            return;
+        }
+        
+        const selectedManager = managerSelect.value.trim();
+        const enteredPin = pinInput.value.trim();
+        
+        console.log('📝 입력된 정보:', { 
+            manager: selectedManager, 
+            pin: enteredPin ? '****' : '(비어있음)' 
+        });
+        
+        // 입력 검증
         if (!selectedManager) {
-            this.showNotification('담당자를 선택해주세요.', 'error');
+            this.showNotification('담당자를 선택해주세요', 'warning');
+            managerSelect.focus();
             return;
         }
-
-        if (!enteredPin || enteredPin.length !== 4) {
-            this.showNotification('4자리 PIN 번호를 입력해주세요.', 'error');
+        
+        if (!enteredPin) {
+            this.showNotification('PIN 번호를 입력해주세요', 'warning');
+            pinInput.focus();
             return;
         }
-
-        // PIN 확인
+        
+        if (enteredPin.length !== 4) {
+            this.showNotification('PIN 번호는 4자리여야 합니다', 'warning');
+            pinInput.focus();
+            return;
+        }
+        
+        // 사용자 설정 확인
+        if (!this.userConfig || !this.userConfig.users) {
+            console.error('❌ 사용자 설정이 로드되지 않았습니다');
+            this.showNotification('사용자 설정을 불러올 수 없습니다', 'error');
+            return;
+        }
+        
+        // 사용자 인증
         const user = this.userConfig.users[selectedManager];
-        if (!user || user.pin !== enteredPin) {
-            this.showNotification('PIN 번호가 틀렸습니다.', 'error');
-            pinInput.value = '';
+        if (!user) {
+            console.error('❌ 사용자를 찾을 수 없습니다:', selectedManager);
+            this.showNotification('등록되지 않은 사용자입니다', 'error');
             return;
         }
-
+        
+        console.log('👤 찾은 사용자:', { name: user.name, role: user.role });
+        console.log('🔑 PIN 비교:', { 
+            입력된PIN: enteredPin, 
+            등록된PIN: user.pin,
+            일치여부: user.pin === enteredPin 
+        });
+        
+        if (user.pin !== enteredPin) {
+            console.error('❌ PIN 번호가 일치하지 않습니다');
+            this.showNotification('PIN 번호가 올바르지 않습니다', 'error');
+            pinInput.value = '';
+            pinInput.focus();
+            return;
+        }
+        
         // 로그인 성공
+        console.log('✅ 로그인 성공!');
         this.currentUser = user;
         this.isLoggedIn = true;
-
-        // 로그인 정보 저장 (세션 만료 없음)
-        const loginData = {
-            user: user,
-            loginTime: new Date().getTime()
-        };
-        localStorage.setItem('trkorea_login', JSON.stringify(loginData));
-
-        // 성공 메시지
+        
+        // 로그인 시간 업데이트
+        user.last_login = new Date().toISOString();
+        await this.saveUserConfig();
+        
+        // 세션 저장
+        sessionStorage.setItem('currentUser', JSON.stringify(user));
+        sessionStorage.setItem('loginTime', Date.now().toString());
+        
+        // UI 업데이트
+        this.hideLoginScreen();
+        this.showMainApp();
+        this.updateUserDisplay();
+        
+        // 세션 타임아웃 설정
+        this.setupSessionTimeout();
+        
         this.showNotification(`${user.name}님, 환영합니다!`, 'success');
-
-        // 메인 앱 초기화
-        await this.initMainApp();
+        console.log('🎉 로그인 프로세스 완료');
     }
 
     // 로그아웃 처리
@@ -3114,156 +3191,6 @@ class OrderApp {
             default:
                 console.log(`❓ 알 수 없는 화면: ${screenId}`);
         }
-    }
-
-    // 기존 이벤트 리스너 완전 제거
-    removeAllNavigationListeners() {
-        const navButtons = document.querySelectorAll('.nav-btn');
-        navButtons.forEach(btn => {
-            // 기존 이벤트 리스너 제거를 위해 복제본으로 교체
-            const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
-        });
-        console.log('🧹 기존 네비게이션 이벤트 리스너 제거 완료');
-    }
-
-    // 주문수정 화면 로드 개선
-    loadEditableOrders() {
-        console.log('📝 주문수정 화면 로드 시작...');
-        
-        try {
-            const editScreen = document.getElementById('orderEdit');
-            if (!editScreen) {
-                console.error('❌ 주문수정 화면을 찾을 수 없습니다');
-                return;
-            }
-            
-            // 화면 내용 설정
-            editScreen.innerHTML = `
-                <div class="edit-container">
-                    <div class="edit-header">
-                        <h2>📝 주문 수정</h2>
-                        <button onclick="app.refreshEditList()" class="btn btn-primary btn-sm">
-                            🔄 새로고침
-                        </button>
-                    </div>
-                    
-                    <div class="edit-filters">
-                        <select id="editStatusFilter" onchange="app.filterEditOrders()">
-                            <option value="">전체 상태</option>
-                            <option value="신규">신규</option>
-                            <option value="처리중">처리중</option>
-                            <option value="완료">완료</option>
-                        </select>
-                        
-                        <select id="editUserFilter" onchange="app.filterEditOrders()">
-                            <option value="">전체 담당자</option>
-                        </select>
-                    </div>
-                    
-                    <div id="editOrdersList" class="edit-orders-list">
-                        <div class="loading-message">
-                            <p>📥 주문 데이터를 불러오는 중...</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // 담당자 필터 옵션 추가
-            this.populateEditUserFilter();
-            
-            // 주문 목록 로드
-            this.refreshEditList();
-            
-            console.log('✅ 주문수정 화면 로드 완료');
-            
-        } catch (error) {
-            console.error('❌ 주문수정 화면 로드 실패:', error);
-            this.showNotification('주문수정 화면 로드 중 오류가 발생했습니다', 'error');
-        }
-    }
-
-    // 담당자 필터 옵션 추가
-    populateEditUserFilter() {
-        const userFilter = document.getElementById('editUserFilter');
-        if (!userFilter) return;
-        
-        // 현재 사용자 목록 가져오기
-        const users = this.userConfig?.users || {};
-        
-        Object.keys(users).forEach(userName => {
-            const option = document.createElement('option');
-            option.value = userName;
-            option.textContent = userName;
-            userFilter.appendChild(option);
-        });
-    }
-
-    // 주문 목록 새로고침
-    refreshEditList() {
-        console.log('🔄 주문 목록 새로고침');
-        
-        const listContainer = document.getElementById('editOrdersList');
-        if (!listContainer) return;
-        
-        // 로딩 표시
-        listContainer.innerHTML = '<div class="loading-message"><p>📥 데이터 로드 중...</p></div>';
-        
-        // 실제 데이터 로드 (비동기)
-        setTimeout(() => {
-            this.displayEditableOrders();
-        }, 500);
-    }
-
-    // 수정 가능한 주문 목록 표시
-    displayEditableOrders() {
-        const listContainer = document.getElementById('editOrdersList');
-        if (!listContainer) return;
-        
-        const orders = this.orders || [];
-        
-        if (orders.length === 0) {
-            listContainer.innerHTML = `
-                <div class="no-orders">
-                    <p>📭 수정할 주문이 없습니다.</p>
-                    <button onclick="app.switchToScreen('orderForm')" class="btn btn-primary">
-                        ➕ 새 주문 작성
-                    </button>
-                </div>
-            `;
-            return;
-        }
-        
-        let html = '<div class="orders-grid">';
-        
-        orders.forEach((order, index) => {
-            html += `
-                <div class="order-card" data-order-index="${index}">
-                    <div class="order-header">
-                        <span class="order-number">${order.주문번호}</span>
-                        <span class="order-status status-${order.상태 || '신규'}">${order.상태 || '신규'}</span>
-                    </div>
-                    <div class="order-info">
-                        <p><strong>담당자:</strong> ${order.담당자}</p>
-                        <p><strong>거래처:</strong> ${order.거래처}</p>
-                        <p><strong>품목:</strong> ${order.품목}</p>
-                        <p><strong>수량:</strong> ${order.수량}</p>
-                        <p><strong>단가:</strong> ${order.단가?.toLocaleString()}원</p>
-                    </div>
-                    <div class="order-actions">
-                        <button onclick="app.editOrder(${index})" class="btn btn-primary btn-sm">
-                            ✏️ 수정
-                        </button>
-                        <button onclick="app.deleteOrder(${index})" class="btn btn-danger btn-sm">
-                            🗑️ 삭제
-                        </button>
-                    </div>
-                </div>
-            `;
-        });
-        
-        html += '</div>';
-        listContainer.innerHTML = html;
     }
 
     // 기존 이벤트 리스너 완전 제거
