@@ -333,30 +333,24 @@ class OrderSystemApp {
     switchScreen(screenId) {
         console.log(`🔄 화면 전환: ${screenId}`);
         
-        // 🔲 모든 화면 숨기기
-        const allScreens = document.querySelectorAll('.content-screen');
-        allScreens.forEach(screen => {
-            screen.classList.remove('active');
-        });
-        
-        // 🔲 모든 네비게이션 버튼 비활성화
+        /* ✅ (수정) 모든 화면 숨기기
+           기존: '.content-screen'  →  '.screen'
+        */
+        const allScreens = document.querySelectorAll('.screen');
+        allScreens.forEach(screen => screen.classList.remove('active'));
+
+        // 네비게이션 버튼은 그대로 유지
         const allNavBtns = document.querySelectorAll('.nav-btn');
-        allNavBtns.forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
+        allNavBtns.forEach(btn => btn.classList.remove('active'));
+
         // ✅ 대상 화면 활성화
         const targetScreen = document.getElementById(screenId);
-        if (targetScreen) {
-            targetScreen.classList.add('active');
-        }
-        
+        if (targetScreen) targetScreen.classList.add('active');
+
         // ✅ 해당 네비게이션 버튼 활성화
         const targetNavBtn = document.querySelector(`[data-screen="${screenId}"]`);
-        if (targetNavBtn) {
-            targetNavBtn.classList.add('active');
-        }
-        
+        if (targetNavBtn) targetNavBtn.classList.add('active');
+
         // 📋 화면별 초기화
         this.initializeScreen(screenId);
     }
