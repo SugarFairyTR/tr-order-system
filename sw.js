@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tr-order-app-v1.0.0';
+const CACHE_NAME = 'tr-order-system-v2.0';
 const urlsToCache = [
   './',
   './index.html',
@@ -14,28 +14,28 @@ const urlsToCache = [
 
 // 설치 이벤트
 self.addEventListener('install', event => {
-  console.log('Service Worker 설치 중...');
+  console.log('🔄 Service Worker 설치 중...');
+  self.skipWaiting(); // 즉시 활성화
+  
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('캐시 열림');
+        console.log('📦 캐시 업데이트 중...');
         return cache.addAll(urlsToCache);
-      })
-      .catch(error => {
-        console.error('캐시 추가 실패:', error);
       })
   );
 });
 
 // 활성화 이벤트
 self.addEventListener('activate', event => {
-  console.log('Service Worker 활성화됨');
+  console.log('✅ Service Worker 활성화');
+  
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheName !== CACHE_NAME) {
-            console.log('이전 캐시 삭제:', cacheName);
+            console.log('🗑️ 이전 캐시 삭제:', cacheName);
             return caches.delete(cacheName);
           }
         })

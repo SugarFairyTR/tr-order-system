@@ -29,6 +29,12 @@ class OrderApp {
         this.lastBackupTime = localStorage.getItem('lastBackupTime');
         this.autoBackupInterval = null;
         
+        // 사용자 관리자 초기화
+        this.userManager = new UserManager(this);
+        
+        // 네비게이션 매니저 초기화 (다른 초기화 후에)
+        this.navigationManager = null;
+        
         this.init();
         this.setupOfflineHandling();
         this.setupAutoBackup();
@@ -240,21 +246,34 @@ class OrderApp {
     }
 
     async init() {
-        // 사용자 설정 로드
-        await this.loadUserConfig();
-        
-        // 로그인 상태 확인
-        this.checkLoginStatus();
-        
-        // 로그인되지 않은 경우 로그인 화면 표시
-        if (!this.isLoggedIn) {
-            this.showLoginScreen();
-            this.setupLoginEventListeners();
-            return;
+        try {
+            console.log('🚀 앱 초기화 시작...');
+            
+            // 사용자 설정 로드
+            await this.loadUserConfig();
+            
+            // 로그인 상태 확인
+            this.checkLoginStatus();
+            
+            // 로그인되지 않은 경우 로그인 화면 표시
+            if (!this.isLoggedIn) {
+                this.showLoginScreen();
+                this.setupLoginEventListeners();
+                return;
+            }
+            
+            // 로그인된 경우 메인 앱 초기화
+            await this.initMainApp();
+            
+            // 네비게이션 매니저 초기화 (마지막에)
+            setTimeout(() => {
+                this.navigationManager = new NavigationManager(this);
+                console.log('✅ 네비게이션 매니저 초기화 완료');
+            }, 1000);
+            
+        } catch (error) {
+            console.error('❌ 앱 초기화 실패:', error);
         }
-        
-        // 로그인된 경우 메인 앱 초기화
-        await this.initMainApp();
     }
     
     async initMainApp() {
@@ -288,30 +307,181 @@ class OrderApp {
     // 사용자 설정 로드
     async loadUserConfig() {
         try {
-            console.log('사용자 설정 로드 시도: ./user_config.json');
+            console.log('👥 사용자 설정 로드 중...');
+            
             const response = await fetch('./user_config.json');
+            this.userConfig = await response.json();
             
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: 사용자 설정 파일을 찾을 수 없습니다.`);
+            // 사용자 관리자와 동기화
+            if (this.userManager) {
+                await this.userManager.loadUsers();
             }
             
-            const data = await response.json();
+            console.log('✅ 사용자 설정 로드 완료');
             
-            if (this.validateUserConfig(data)) {
-                this.userConfig = data;
-                console.log('사용자 설정 로드 성공:', {
-                    사용자수: Object.keys(data.users || {}).length,
-                    회사명: data.settings?.company_name || 'N/A',
-                    버전: data.settings?.system_version || 'N/A'
-                });
-            } else {
-                throw new Error('사용자 설정 파일 형식이 올바르지 않습니다.');
-            }
+            // 로그인 화면 업데이트
+            this.updateLoginScreen();
             
         } catch (error) {
-            console.error('사용자 설정 로딩 실패:', error);
-            this.showNotification('사용자 설정 로딩에 실패했습니다. 기본 설정을 사용합니다.', 'warning');
-            this.userConfig = this.getDefaultUserConfig();
+            console.error('❌ 사용자 설정 로드 실패:', error);
+            this.userConfig = { users: {}, settings: {}, security: {} };
+        }
+    }
+
+    // 로그인 화면 동적 업데이트
+    updateLoginScreen() {
+        const userSelect = document.getElementById('userSelect');
+        if (!userSelect) return;
+        
+        // 기존 옵션 제거
+        userSelect.innerHTML = '<option value="">사용자를 선택하세요</option>';
+        
+        // 현재 사용자 목록으로 업데이트
+        const users = this.userConfig?.users || {};
+        
+        Object.keys(users).forEach(userName => {
+            const user = users[userName];
+            const option = document.createElement('option');
+            option.value = userName;
+            option.textContent = `${userName} (${user.role})`;
+            userSelect.appendChild(option);
+        });
+        
+        console.log(`🔄 로그인 화면 업데이트: ${Object.keys(users).length}명`);
+    }
+
+    // 사용자 추가 후 로그인 화면 자동 업데이트
+    // UserManager 클래스의 addUser 메서드 수정
+    addUser(userData) {
+        try {
+            const { name, pin, role, department, email, phone } = userData;
+            
+            // 유효성 검사
+            if (!name || !pin || !role) {
+                this.app.showNotification('이름, PIN, 역할은 필수 입력 항목입니다.', 'error');
+                return false;
+            }
+            
+            if (this.users[name]) {
+                this.app.showNotification('이미 존재하는 사용자입니다.', 'error');
+                return false;
+            }
+            
+            if (pin.length !== 4 || !/^\d+$/.test(pin)) {
+                this.app.showNotification('PIN은 4자리 숫자여야 합니다.', 'error');
+                return false;
+            }
+            
+            // PIN 중복 확인
+            const existingPins = Object.values(this.users).map(user => user.pin);
+            if (existingPins.includes(pin)) {
+                this.app.showNotification('이미 사용 중인 PIN입니다.', 'error');
+                return false;
+            }
+            
+            // 새 사용자 추가
+            this.users[name] = {
+                pin: pin,
+                name: name,
+                role: role,
+                department: department || '영업팀',
+                email: email || '',
+                phone: phone || '',
+                created_at: new Date().toISOString().split('T')[0],
+                last_login: null
+            };
+            
+            console.log(`✅ 새 사용자 추가: ${name}`);
+            
+            // 파일 업데이트
+            this.updateUserConfigFile();
+            
+            // 로그인 화면 즉시 업데이트
+            this.app.updateLoginScreen();
+            
+            this.app.showNotification(`✅ "${name}" 사용자가 추가되었습니다!`, 'success');
+            return true;
+            
+        } catch (error) {
+            console.error('❌ 사용자 추가 실패:', error);
+            this.app.showNotification('사용자 추가 중 오류가 발생했습니다.', 'error');
+            return false;
+        }
+    }
+
+    // 사용자 삭제 후 로그인 화면 자동 업데이트
+    deleteUser(userName) {
+        try {
+            if (!this.users[userName]) {
+                this.app.showNotification('존재하지 않는 사용자입니다.', 'error');
+                return false;
+            }
+            
+            // 현재 로그인한 사용자는 삭제 불가
+            if (this.app.currentUser && this.app.currentUser.name === userName) {
+                this.app.showNotification('현재 로그인한 사용자는 삭제할 수 없습니다.', 'error');
+                return false;
+            }
+            
+            // 사용자 삭제
+            delete this.users[userName];
+            
+            console.log(`🗑️ 사용자 삭제: ${userName}`);
+            
+            // 파일 업데이트
+            this.updateUserConfigFile();
+            
+            // 로그인 화면 즉시 업데이트
+            this.app.updateLoginScreen();
+            
+            this.app.showNotification(`✅ "${userName}" 사용자가 삭제되었습니다.`, 'success');
+            return true;
+            
+        } catch (error) {
+            console.error('❌ 사용자 삭제 실패:', error);
+            this.app.showNotification('사용자 삭제 중 오류가 발생했습니다.', 'error');
+            return false;
+        }
+    }
+
+    // user_config.json 파일 업데이트 (Firebase 동기화)
+    async updateUserConfigFile() {
+        try {
+            const updatedConfig = {
+                users: this.users,
+                settings: this.app.userConfig?.settings || {
+                    pin_length: 4,
+                    session_timeout: 3600,
+                    max_login_attempts: 5,
+                    auto_logout_warning: 300,
+                    company_name: "주식회사 티알코리아",
+                    system_version: "1.0.0"
+                },
+                security: this.app.userConfig?.security || {
+                    password_policy: "4자리 숫자",
+                    encryption: false,
+                    login_history: true,
+                    failed_attempts: {}
+                },
+                last_updated: new Date().toISOString()
+            };
+            
+            // 로컬 userConfig 업데이트
+            this.app.userConfig = updatedConfig;
+            
+            // Firebase에 저장 (가능한 경우)
+            if (this.app.isFirebaseEnabled) {
+                await this.app.firebaseDb.ref('user_config').set(updatedConfig);
+                console.log('☁️ Firebase에 사용자 설정 저장 완료');
+            }
+            
+            // 로컬 스토리지에도 백업
+            localStorage.setItem('user_config_backup', JSON.stringify(updatedConfig));
+            
+            console.log('✅ 사용자 설정 파일 업데이트 완료');
+            
+        } catch (error) {
+            console.error('❌ 사용자 설정 파일 업데이트 실패:', error);
         }
     }
 
@@ -2794,6 +2964,458 @@ class OrderApp {
             console.error('입력 필드 설정 중 오류:', error);
         }
     }
+
+    // 하단 네비게이션 완전 재구성
+    setupBottomNavigation() {
+        console.log('🔧 하단 네비게이션 설정 시작...');
+        
+        // 기존 이벤트 리스너 완전 제거
+        this.removeAllNavigationListeners();
+        
+        // 네비게이션 버튼 찾기
+        const navButtons = document.querySelectorAll('.nav-btn');
+        console.log(`📱 네비게이션 버튼 ${navButtons.length}개 발견`);
+        
+        navButtons.forEach((button, index) => {
+            const targetScreen = button.getAttribute('data-screen');
+            console.log(`🔗 네비게이션 버튼 ${index + 1}: ${targetScreen}`);
+            
+            // 각 버튼에 고유 식별자 추가
+            button.setAttribute('data-nav-index', index);
+            button.setAttribute('data-original-screen', targetScreen);
+            
+            // 클릭 이벤트 추가 (이벤트 위임 방식)
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // 실제 클릭된 버튼의 data-screen 속성 다시 확인
+                const actualTarget = e.currentTarget.getAttribute('data-screen');
+                console.log(`🎯 실제 클릭된 버튼: ${actualTarget}`);
+                
+                this.handleNavigationClick(actualTarget, e.currentTarget);
+            });
+            
+            // 터치 이벤트도 추가 (모바일 대응)
+            button.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                const actualTarget = e.currentTarget.getAttribute('data-screen');
+                console.log(`👆 터치 이벤트: ${actualTarget}`);
+                this.handleNavigationClick(actualTarget, e.currentTarget);
+            });
+        });
+        
+        console.log('✅ 하단 네비게이션 설정 완료');
+    }
+
+    // 네비게이션 클릭 처리 로직 개선
+    handleNavigationClick(targetScreen, clickedButton) {
+        console.log(`🔄 네비게이션 클릭 처리: ${targetScreen}`);
+        
+        // 현재 활성 화면 정확히 찾기
+        const currentActiveScreen = document.querySelector('.screen.active');
+        const currentScreenId = currentActiveScreen ? currentActiveScreen.id : null;
+        
+        console.log(`📍 현재 화면: ${currentScreenId} → 이동할 화면: ${targetScreen}`);
+        
+        // 같은 화면이면 무시 (정확한 비교)
+        if (currentScreenId === targetScreen) {
+            console.log('ℹ️ 이미 현재 화면입니다. 이동하지 않습니다.');
+            return;
+        }
+        
+        // 버튼 비활성화 체크
+        if (clickedButton && clickedButton.disabled) {
+            console.log('⚠️ 버튼이 비활성화되어 있습니다.');
+            return;
+        }
+        
+        // 화면 전환 실행
+        this.switchToScreen(targetScreen, clickedButton);
+    }
+
+    // 화면 전환 로직 완전 재작성
+    switchToScreen(screenId, clickedButton) {
+        try {
+            console.log(`🔄 화면 전환 시작: ${screenId}`);
+            
+            // 1. 모든 화면 비활성화
+            const allScreens = document.querySelectorAll('.screen');
+            allScreens.forEach(screen => {
+                screen.classList.remove('active');
+                screen.style.display = 'none';
+                console.log(`📴 화면 비활성화: ${screen.id}`);
+            });
+            
+            // 2. 모든 네비게이션 버튼 비활성화
+            const allNavButtons = document.querySelectorAll('.nav-btn');
+            allNavButtons.forEach(btn => {
+                btn.classList.remove('active');
+                btn.style.background = '';
+                btn.style.color = '';
+            });
+            
+            // 3. 대상 화면 활성화
+            const targetScreen = document.getElementById(screenId);
+            if (targetScreen) {
+                targetScreen.style.display = 'block';
+                targetScreen.classList.add('active');
+                console.log(`✅ 화면 활성화됨: ${screenId}`);
+                
+                // 4. 클릭된 네비게이션 버튼 활성화
+                if (clickedButton) {
+                    clickedButton.classList.add('active');
+                    clickedButton.style.background = '#2196F3';
+                    clickedButton.style.color = 'white';
+                    console.log(`🎯 네비게이션 버튼 활성화: ${screenId}`);
+                }
+                
+                // 5. 화면별 초기화 실행
+                this.initializeScreen(screenId);
+                
+                console.log(`✅ 화면 전환 완료: ${screenId}`);
+                
+            } else {
+                console.error(`❌ 화면을 찾을 수 없습니다: ${screenId}`);
+                this.showNotification('화면을 찾을 수 없습니다', 'error');
+            }
+            
+        } catch (error) {
+            console.error('❌ 화면 전환 중 오류:', error);
+            this.showNotification('화면 전환 중 오류가 발생했습니다', 'error');
+        }
+    }
+
+    // 화면별 초기화 로직 개선
+    initializeScreen(screenId) {
+        console.log(`🔧 화면 초기화: ${screenId}`);
+        
+        switch(screenId) {
+            case 'orderForm':
+                console.log('📝 주문입력 화면 초기화');
+                this.resetOrderForm();
+                break;
+                
+            case 'orderList':
+                console.log('📋 목록보기 화면 초기화');
+                this.loadOrderList();
+                break;
+                
+            case 'orderEdit':
+                console.log('✏️ 주문수정 화면 초기화');
+                this.loadEditableOrders();
+                break;
+                
+            case 'settings':
+                console.log('⚙️ 설정 화면 초기화');
+                this.showSettings();
+                break;
+                
+            default:
+                console.log(`❓ 알 수 없는 화면: ${screenId}`);
+        }
+    }
+
+    // 기존 이벤트 리스너 완전 제거
+    removeAllNavigationListeners() {
+        const navButtons = document.querySelectorAll('.nav-btn');
+        navButtons.forEach(btn => {
+            // 기존 이벤트 리스너 제거를 위해 복제본으로 교체
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+        });
+        console.log('🧹 기존 네비게이션 이벤트 리스너 제거 완료');
+    }
+
+    // 주문수정 화면 로드 개선
+    loadEditableOrders() {
+        console.log('📝 주문수정 화면 로드 시작...');
+        
+        try {
+            const editScreen = document.getElementById('orderEdit');
+            if (!editScreen) {
+                console.error('❌ 주문수정 화면을 찾을 수 없습니다');
+                return;
+            }
+            
+            // 화면 내용 설정
+            editScreen.innerHTML = `
+                <div class="edit-container">
+                    <div class="edit-header">
+                        <h2>📝 주문 수정</h2>
+                        <button onclick="app.refreshEditList()" class="btn btn-primary btn-sm">
+                            🔄 새로고침
+                        </button>
+                    </div>
+                    
+                    <div class="edit-filters">
+                        <select id="editStatusFilter" onchange="app.filterEditOrders()">
+                            <option value="">전체 상태</option>
+                            <option value="신규">신규</option>
+                            <option value="처리중">처리중</option>
+                            <option value="완료">완료</option>
+                        </select>
+                        
+                        <select id="editUserFilter" onchange="app.filterEditOrders()">
+                            <option value="">전체 담당자</option>
+                        </select>
+                    </div>
+                    
+                    <div id="editOrdersList" class="edit-orders-list">
+                        <div class="loading-message">
+                            <p>📥 주문 데이터를 불러오는 중...</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 담당자 필터 옵션 추가
+            this.populateEditUserFilter();
+            
+            // 주문 목록 로드
+            this.refreshEditList();
+            
+            console.log('✅ 주문수정 화면 로드 완료');
+            
+        } catch (error) {
+            console.error('❌ 주문수정 화면 로드 실패:', error);
+            this.showNotification('주문수정 화면 로드 중 오류가 발생했습니다', 'error');
+        }
+    }
+
+    // 담당자 필터 옵션 추가
+    populateEditUserFilter() {
+        const userFilter = document.getElementById('editUserFilter');
+        if (!userFilter) return;
+        
+        // 현재 사용자 목록 가져오기
+        const users = this.userConfig?.users || {};
+        
+        Object.keys(users).forEach(userName => {
+            const option = document.createElement('option');
+            option.value = userName;
+            option.textContent = userName;
+            userFilter.appendChild(option);
+        });
+    }
+
+    // 주문 목록 새로고침
+    refreshEditList() {
+        console.log('🔄 주문 목록 새로고침');
+        
+        const listContainer = document.getElementById('editOrdersList');
+        if (!listContainer) return;
+        
+        // 로딩 표시
+        listContainer.innerHTML = '<div class="loading-message"><p>📥 데이터 로드 중...</p></div>';
+        
+        // 실제 데이터 로드 (비동기)
+        setTimeout(() => {
+            this.displayEditableOrders();
+        }, 500);
+    }
+
+    // 수정 가능한 주문 목록 표시
+    displayEditableOrders() {
+        const listContainer = document.getElementById('editOrdersList');
+        if (!listContainer) return;
+        
+        const orders = this.orders || [];
+        
+        if (orders.length === 0) {
+            listContainer.innerHTML = `
+                <div class="no-orders">
+                    <p>📭 수정할 주문이 없습니다.</p>
+                    <button onclick="app.switchToScreen('orderForm')" class="btn btn-primary">
+                        ➕ 새 주문 작성
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="orders-grid">';
+        
+        orders.forEach((order, index) => {
+            html += `
+                <div class="order-card" data-order-index="${index}">
+                    <div class="order-header">
+                        <span class="order-number">${order.주문번호}</span>
+                        <span class="order-status status-${order.상태 || '신규'}">${order.상태 || '신규'}</span>
+                    </div>
+                    <div class="order-info">
+                        <p><strong>담당자:</strong> ${order.담당자}</p>
+                        <p><strong>거래처:</strong> ${order.거래처}</p>
+                        <p><strong>품목:</strong> ${order.품목}</p>
+                        <p><strong>수량:</strong> ${order.수량}</p>
+                        <p><strong>단가:</strong> ${order.단가?.toLocaleString()}원</p>
+                    </div>
+                    <div class="order-actions">
+                        <button onclick="app.editOrder(${index})" class="btn btn-primary btn-sm">
+                            ✏️ 수정
+                        </button>
+                        <button onclick="app.deleteOrder(${index})" class="btn btn-danger btn-sm">
+                            🗑️ 삭제
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        listContainer.innerHTML = html;
+    }
+
+    // 기존 이벤트 리스너 완전 제거
+    removeAllNavigationListeners() {
+        const navButtons = document.querySelectorAll('.nav-btn');
+        navButtons.forEach(btn => {
+            // 기존 이벤트 리스너 제거를 위해 복제본으로 교체
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+        });
+        console.log('🧹 기존 네비게이션 이벤트 리스너 제거 완료');
+    }
+
+    // 주문수정 화면 로드 개선
+    loadEditableOrders() {
+        console.log('📝 주문수정 화면 로드 시작...');
+        
+        try {
+            const editScreen = document.getElementById('orderEdit');
+            if (!editScreen) {
+                console.error('❌ 주문수정 화면을 찾을 수 없습니다');
+                return;
+            }
+            
+            // 화면 내용 설정
+            editScreen.innerHTML = `
+                <div class="edit-container">
+                    <div class="edit-header">
+                        <h2>📝 주문 수정</h2>
+                        <button onclick="app.refreshEditList()" class="btn btn-primary btn-sm">
+                            🔄 새로고침
+                        </button>
+                    </div>
+                    
+                    <div class="edit-filters">
+                        <select id="editStatusFilter" onchange="app.filterEditOrders()">
+                            <option value="">전체 상태</option>
+                            <option value="신규">신규</option>
+                            <option value="처리중">처리중</option>
+                            <option value="완료">완료</option>
+                        </select>
+                        
+                        <select id="editUserFilter" onchange="app.filterEditOrders()">
+                            <option value="">전체 담당자</option>
+                        </select>
+                    </div>
+                    
+                    <div id="editOrdersList" class="edit-orders-list">
+                        <div class="loading-message">
+                            <p>📥 주문 데이터를 불러오는 중...</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 담당자 필터 옵션 추가
+            this.populateEditUserFilter();
+            
+            // 주문 목록 로드
+            this.refreshEditList();
+            
+            console.log('✅ 주문수정 화면 로드 완료');
+            
+        } catch (error) {
+            console.error('❌ 주문수정 화면 로드 실패:', error);
+            this.showNotification('주문수정 화면 로드 중 오류가 발생했습니다', 'error');
+        }
+    }
+
+    // 담당자 필터 옵션 추가
+    populateEditUserFilter() {
+        const userFilter = document.getElementById('editUserFilter');
+        if (!userFilter) return;
+        
+        // 현재 사용자 목록 가져오기
+        const users = this.userConfig?.users || {};
+        
+        Object.keys(users).forEach(userName => {
+            const option = document.createElement('option');
+            option.value = userName;
+            option.textContent = userName;
+            userFilter.appendChild(option);
+        });
+    }
+
+    // 주문 목록 새로고침
+    refreshEditList() {
+        console.log('🔄 주문 목록 새로고침');
+        
+        const listContainer = document.getElementById('editOrdersList');
+        if (!listContainer) return;
+        
+        // 로딩 표시
+        listContainer.innerHTML = '<div class="loading-message"><p>📥 데이터 로드 중...</p></div>';
+        
+        // 실제 데이터 로드 (비동기)
+        setTimeout(() => {
+            this.displayEditableOrders();
+        }, 500);
+    }
+
+    // 수정 가능한 주문 목록 표시
+    displayEditableOrders() {
+        const listContainer = document.getElementById('editOrdersList');
+        if (!listContainer) return;
+        
+        const orders = this.orders || [];
+        
+        if (orders.length === 0) {
+            listContainer.innerHTML = `
+                <div class="no-orders">
+                    <p>📭 수정할 주문이 없습니다.</p>
+                    <button onclick="app.switchToScreen('orderForm')" class="btn btn-primary">
+                        ➕ 새 주문 작성
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="orders-grid">';
+        
+        orders.forEach((order, index) => {
+            html += `
+                <div class="order-card" data-order-index="${index}">
+                    <div class="order-header">
+                        <span class="order-number">${order.주문번호}</span>
+                        <span class="order-status status-${order.상태 || '신규'}">${order.상태 || '신규'}</span>
+                    </div>
+                    <div class="order-info">
+                        <p><strong>담당자:</strong> ${order.담당자}</p>
+                        <p><strong>거래처:</strong> ${order.거래처}</p>
+                        <p><strong>품목:</strong> ${order.품목}</p>
+                        <p><strong>수량:</strong> ${order.수량}</p>
+                        <p><strong>단가:</strong> ${order.단가?.toLocaleString()}원</p>
+                    </div>
+                    <div class="order-actions">
+                        <button onclick="app.editOrder(${index})" class="btn btn-primary btn-sm">
+                            ✏️ 수정
+                        </button>
+                        <button onclick="app.deleteOrder(${index})" class="btn btn-danger btn-sm">
+                            🗑️ 삭제
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        listContainer.innerHTML = html;
+    }
+
 }
 
 // 앱 초기화
@@ -2816,4 +3438,200 @@ function testConnection() {
 // 가격 입력 시 천단위 콤마 자동 추가 함수
 function addCommas(num) {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+// 네비게이션 시스템 완전 재구성
+class NavigationManager {
+    constructor(app) {
+        this.app = app;
+        this.currentScreen = 'orderForm';
+        this.isTransitioning = false;
+        this.navigationButtons = new Map();
+        this.init();
+    }
+    
+    init() {
+        console.log('🔧 네비게이션 매니저 초기화...');
+        this.setupNavigation();
+        this.bindEvents();
+    }
+    
+    // 네비게이션 설정
+    setupNavigation() {
+        // 기존 이벤트 완전 제거
+        this.removeAllEvents();
+        
+        // 네비게이션 버튼 매핑
+        const buttons = document.querySelectorAll('.nav-btn');
+        console.log(`📱 네비게이션 버튼 ${buttons.length}개 발견`);
+        
+        buttons.forEach((button, index) => {
+            const screenId = button.getAttribute('data-screen');
+            if (screenId) {
+                this.navigationButtons.set(screenId, button);
+                console.log(`🔗 버튼 매핑: ${screenId} → 버튼 ${index}`);
+            }
+        });
+    }
+    
+    // 모든 이벤트 제거
+    removeAllEvents() {
+        const buttons = document.querySelectorAll('.nav-btn');
+        buttons.forEach(button => {
+            // 기존 이벤트 리스너 완전 제거
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+        });
+        console.log('🧹 모든 네비게이션 이벤트 제거 완료');
+    }
+    
+    // 이벤트 바인딩
+    bindEvents() {
+        // 이벤트 위임 방식 사용
+        const bottomNav = document.querySelector('.bottom-nav');
+        if (!bottomNav) {
+            console.error('❌ 하단 네비게이션을 찾을 수 없습니다');
+            return;
+        }
+        
+        // 단일 이벤트 리스너로 모든 클릭 처리
+        bottomNav.addEventListener('click', (e) => {
+            const button = e.target.closest('.nav-btn');
+            if (button) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const targetScreen = button.getAttribute('data-screen');
+                console.log(`🎯 네비게이션 클릭: ${targetScreen}`);
+                
+                this.navigateTo(targetScreen);
+            }
+        });
+        
+        console.log('✅ 이벤트 위임 방식으로 네비게이션 설정 완료');
+    }
+    
+    // 화면 이동 (메인 함수)
+    navigateTo(targetScreen) {
+        // 전환 중이면 무시
+        if (this.isTransitioning) {
+            console.log('⏳ 화면 전환 중입니다. 잠시 기다려주세요.');
+            return;
+        }
+        
+        // 현재 화면과 같으면 무시
+        if (this.currentScreen === targetScreen) {
+            console.log(`ℹ️ 이미 ${targetScreen} 화면입니다.`);
+            return;
+        }
+        
+        console.log(`🔄 화면 전환: ${this.currentScreen} → ${targetScreen}`);
+        
+        this.isTransitioning = true;
+        
+        try {
+            // 1. 모든 화면 숨기기
+            this.hideAllScreens();
+            
+            // 2. 모든 버튼 비활성화
+            this.deactivateAllButtons();
+            
+            // 3. 대상 화면 표시
+            this.showScreen(targetScreen);
+            
+            // 4. 대상 버튼 활성화
+            this.activateButton(targetScreen);
+            
+            // 5. 화면별 초기화
+            this.initializeScreen(targetScreen);
+            
+            // 6. 현재 화면 업데이트
+            this.currentScreen = targetScreen;
+            
+            console.log(`✅ 화면 전환 완료: ${targetScreen}`);
+            
+        } catch (error) {
+            console.error('❌ 화면 전환 실패:', error);
+            this.app.showNotification('화면 전환 중 오류가 발생했습니다', 'error');
+        } finally {
+            // 전환 완료 후 잠금 해제
+            setTimeout(() => {
+                this.isTransitioning = false;
+            }, 300);
+        }
+    }
+    
+    // 모든 화면 숨기기
+    hideAllScreens() {
+        const screens = document.querySelectorAll('.screen');
+        screens.forEach(screen => {
+            screen.classList.remove('active');
+            screen.style.display = 'none';
+            screen.style.opacity = '0';
+        });
+    }
+    
+    // 모든 버튼 비활성화
+    deactivateAllButtons() {
+        this.navigationButtons.forEach(button => {
+            button.classList.remove('active');
+            button.style.background = '';
+            button.style.color = '';
+            button.style.opacity = '0.7';
+        });
+    }
+    
+    // 화면 표시
+    showScreen(screenId) {
+        const screen = document.getElementById(screenId);
+        if (screen) {
+            screen.style.display = 'block';
+            screen.style.opacity = '1';
+            screen.classList.add('active');
+            console.log(`📺 화면 표시: ${screenId}`);
+        } else {
+            console.error(`❌ 화면을 찾을 수 없습니다: ${screenId}`);
+        }
+    }
+    
+    // 버튼 활성화
+    activateButton(screenId) {
+        const button = this.navigationButtons.get(screenId);
+        if (button) {
+            button.classList.add('active');
+            button.style.background = '#2196F3';
+            button.style.color = 'white';
+            button.style.opacity = '1';
+            console.log(`🎯 버튼 활성화: ${screenId}`);
+        }
+    }
+    
+    // 화면별 초기화
+    initializeScreen(screenId) {
+        console.log(`🔧 화면 초기화: ${screenId}`);
+        
+        switch(screenId) {
+            case 'orderForm':
+                this.app.initOrderForm();
+                break;
+            case 'orderList':
+                this.app.loadOrderList();
+                break;
+            case 'orderEdit':
+                this.app.loadEditableOrders();
+                break;
+            case 'settings':
+                this.app.showSettings();
+                break;
+            default:
+                console.warn(`⚠️ 알 수 없는 화면: ${screenId}`);
+        }
+    }
+    
+    // 강제 새로고침
+    forceRefresh() {
+        console.log('🔄 네비게이션 강제 새로고침');
+        this.setupNavigation();
+        this.bindEvents();
+    }
 }
