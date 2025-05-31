@@ -851,6 +851,32 @@ body {
         --border-light: #374151;
         --border-medium: #4b5563;
     }
+
+    /* 다크 모드에서 입력 필드 스타일 명시적 지정 */
+    .form-group input[type="text"],
+    .form-group input[type="password"],
+    .form-group input[type="date"],
+    .form-group input.number-input { /* .number-input 포함 */
+        background-color: var(--bg-secondary) !important; /* 배경색 강제 지정 */
+        color: var(--text-primary) !important;           /* 텍스트 색상 강제 지정 */
+        border: 1px solid var(--border-medium) !important; /* 테두리 색상 강제 지정 */
+    }
+
+    .form-group select {
+        background-color: var(--bg-secondary) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border-medium) !important;
+    }
+
+    /* 자동완성 필드 스타일도 다크모드에 맞게 조정 */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover, 
+    input:-webkit-autofill:focus, 
+    input:-webkit-autofill:active {
+        -webkit-box-shadow: 0 0 0 30px var(--bg-secondary) inset !important; /* 배경색 */
+        -webkit-text-fill-color: var(--text-primary) !important; /* 텍스트 색상 */
+        caret-color: var(--text-primary) !important; /* 커서 색상 */
+    }
 }
 
 /* 🖱️ 호버 효과 비활성화 (터치 디바이스) */

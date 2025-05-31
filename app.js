@@ -385,15 +385,13 @@ class TROrderSystem {
         
         if (quantityInput) {
             quantityInput.addEventListener('input', (e) => {
-                this.formatNumberInput(e.target);
-                this.calculateTotal();
+                this.formatAndCalculate('quantity');
             });
         }
         
         if (priceInput) {
             priceInput.addEventListener('input', (e) => {
-                this.formatNumberInput(e.target);
-                this.calculateTotal();
+                this.formatAndCalculate('price');
             });
         }
         
@@ -626,25 +624,37 @@ class TROrderSystem {
         }
     }
 
-    // 🔢 숫자 입력 포맷팅
-    formatNumberInput(input) {
-        let value = input.value.replace(/[^0-9]/g, '');
-        if (value) {
-            value = parseInt(value).toLocaleString('ko-KR');
+    // ⌨️ 숫자 입력 필드 포맷팅 및 총액 계산 (수량, 단가)
+    formatAndCalculate(elementId) {
+        const input = document.getElementById(elementId);
+        if (input) {
+            let value = input.value;
+            const numValue = this.parseNumber(value);
+            
+            // 사용자가 직접 입력하는 동안에는 포맷팅을 적용하지 않거나,
+            // 커서 위치를 유지하는 고급 로직이 필요합니다.
+            // 여기서는 일단 값을 그대로 두거나, focusout 시점에 포맷팅을 고려할 수 있습니다.
+            // 지금은 가시성 문제가 더 크므로, 입력된 숫자 값은 유지합니다.
+            // input.value = this.formatNumber(numValue); // 이 줄을 주석 처리하거나 blur 이벤트로 옮기는 것을 고려
+
+            this.calculateTotal();
         }
-        input.value = value;
     }
 
     // 💰 총액 계산
     calculateTotal() {
-        const quantity = this.parseNumber(document.getElementById('quantity')?.value || '0');
-        const price = this.parseNumber(document.getElementById('price')?.value || '0');
+        const quantityInput = document.getElementById('quantity');
+        const priceInput = document.getElementById('price');
+        
+        const quantity = this.parseNumber(quantityInput ? quantityInput.value : '0');
+        const price = this.parseNumber(priceInput ? priceInput.value : '0');
         const total = quantity * price;
         
         const totalElement = document.getElementById('totalAmount');
         if (totalElement) {
             totalElement.textContent = this.formatNumber(total) + '원';
         }
+        console.log(`💰 총액 계산: 수량=${quantity}, 단가=${price}, 총액=${total}`);
     }
 
     // 📅 날짜 비교 함수
@@ -677,67 +687,62 @@ class TROrderSystem {
 
     // 💾 주문 저장
     async saveOrder() {
-        try {
-            this.showLoadingSpinner(true);
-            
-            // 폼 데이터 수집
-            const orderData = this.collectFormData();
-            
-            // 유효성 검사
-            if (!this.validateOrderData(orderData)) {
+        console.log('💾 주문 저장/수정 시도...');
+        const formData = this.getOrderDataFromForm();
+
+        if (!this.validateOrderData(formData)) {
+            console.log('❌ 주문 데이터 유효성 검사 실패');
+            return;
+        }
+
+        let orderToSave;
+        let isNewOrder = false;
+
+        if (this.editingOrderId) {
+            // 주문 수정
+            const index = this.orders.findIndex(order => order.id === this.editingOrderId);
+            if (index !== -1) {
+                orderToSave = { 
+                    ...this.orders[index],
+                    ...formData
+                };
+                this.orders[index] = orderToSave;
+                this.showNotification('주문이 성공적으로 수정되었습니다.', 'success');
+                console.log(`📝 주문 수정 완료: ${this.editingOrderId}`, orderToSave);
+            } else {
+                console.error(`❌ 수정할 주문을 찾지 못했습니다: ${this.editingOrderId}`);
+                this.editingOrderId = null;
+                this.resetForm();
                 return;
             }
-            
-            if (this.editingOrderId) {
-                // 주문 수정
-                const orderIndex = this.orders.findIndex(order => order.id === this.editingOrderId);
-                if (orderIndex !== -1) {
-                    orderData.id = this.editingOrderId;
-                    orderData.수정일시 = new Date().toISOString();
-                    orderData.수정자 = this.currentUser.name;
-                    this.orders[orderIndex] = orderData;
-                    
-                    this.showNotification('주문이 성공적으로 수정되었습니다!', 'success');
-                    console.log('✅ 주문 수정 완료:', orderData.id);
-                }
-                this.editingOrderId = null;
-            } else {
-                // 새 주문 생성
-                orderData.id = this.generateOrderId();
-                orderData.주문일시 = new Date().toISOString();
-                orderData.상태 = '대기';
-                orderData.작성자 = this.currentUser.name;
-                
-                this.orders.unshift(orderData);
-                
-                this.showNotification('주문이 성공적으로 저장되었습니다!', 'success');
-                console.log('✅ 주문 저장 완료:', orderData.id);
-            }
-            
-            // 로컬 저장
-            this.saveOrdersToLocal();
-            
-            // Firebase 저장 (가능한 경우)
-            if (this.isFirebaseEnabled) {
-                await this.saveToFirebase(orderData);
-            }
-            
-            // 폼 초기화
-            this.resetForm();
-            
-            // 주문 목록 업데이트
-            this.updateOrderDisplay();
-            
-        } catch (error) {
-            console.error('❌ 주문 저장 실패:', error);
-            this.showNotification('주문 저장에 실패했습니다.', 'error');
-        } finally {
-            this.showLoadingSpinner(false);
+            this.editingOrderId = null;
+        } else {
+            // 새 주문 추가
+            isNewOrder = true;
+            orderToSave = {
+                ...formData,
+                id: this.generateOrderId(),
+                주문일시: new Date().toISOString()
+            };
+            this.orders.unshift(orderToSave); // 새 주문을 배열 맨 앞에 추가
+            this.showNotification('주문이 성공적으로 저장되었습니다.', 'success');
+            console.log(`✨ 새 주문 저장 완료: ${orderToSave.id}`, orderToSave);
         }
+
+        this.saveOrdersToLocal(); // 전체 주문 목록을 로컬에 저장
+        if (orderToSave) {
+            await this.saveToFirebase(orderToSave); // Firebase에 해당 주문 저장/업데이트
+        }
+        
+        console.log('🔄 주문 목록 업데이트 전 this.orders:', JSON.parse(JSON.stringify(this.orders)));
+        this.updateOrderDisplay(); // 주문 목록 UI 업데이트
+        this.resetForm();
+        this.showScreen('orderList'); // 주문 목록 화면으로 전환
+        console.log('💾 주문 처리 완료, 목록 업데이트 및 폼 초기화');
     }
 
     // 📝 폼 데이터 수집
-    collectFormData() {
+    getOrderDataFromForm() {
         return {
             담당자: document.getElementById('manager')?.value || '',
             판매처: document.getElementById('seller')?.value || '',
@@ -910,39 +915,52 @@ class TROrderSystem {
     // 📋 주문 목록 표시 업데이트
     updateOrderDisplay() {
         const container = document.getElementById('orderListContainer');
-        if (!container) return;
+        if (!container) {
+            console.error('❌ orderListContainer 요소를 찾을 수 없습니다.');
+            return;
+        }
         
+        console.log(`🔄 updateOrderDisplay 호출됨. 현재 viewMode: ${this.viewMode}`);
+        console.log('📋 업데이트 전 전체 주문 목록 (this.orders):', JSON.parse(JSON.stringify(this.orders)));
+
         let filteredOrders = [...this.orders];
         
         // 보기 모드에 따른 필터링
         switch (this.viewMode) {
             case 'upcoming':
                 filteredOrders = filteredOrders.filter(order => !this.isDatePast(order.도착일));
+                console.log('📦 "upcoming" 필터 적용 후:', JSON.parse(JSON.stringify(filteredOrders)));
                 break;
             case 'my':
                 filteredOrders = filteredOrders.filter(order => 
                     order.담당자 === this.currentUser.name && !this.isDatePast(order.도착일)
                 );
+                console.log('📦 "my" 필터 적용 후:', JSON.parse(JSON.stringify(filteredOrders)));
                 break;
             case 'my-all':
                 filteredOrders = filteredOrders.filter(order => order.담당자 === this.currentUser.name);
+                console.log('📦 "my-all" 필터 적용 후:', JSON.parse(JSON.stringify(filteredOrders)));
                 break;
             case 'all':
             default:
                 // 모든 주문 표시
+                console.log('📦 "all" 모드, 필터 없음.');
                 break;
         }
         
         if (filteredOrders.length === 0) {
             container.innerHTML = '<div class="no-orders">표시할 주문이 없습니다.</div>';
+            console.log('🚫 표시할 주문 없음.');
             return;
         }
         
-        // 최신순으로 정렬
+        // 최신순으로 정렬 (주문일시 기준)
         const sortedOrders = filteredOrders.sort((a, b) => 
-            new Date(b.주문일시) - new Date(a.주문일시)
+            new Date(b.주문일시).getTime() - new Date(a.주문일시).getTime()
         );
         
+        console.log('📊 정렬 후 최종 주문 목록:', JSON.parse(JSON.stringify(sortedOrders)));
+
         container.innerHTML = sortedOrders.map(order => {
             const isPast = this.isDatePast(order.도착일);
             const isEditable = !isPast;
@@ -1026,11 +1044,19 @@ class TROrderSystem {
 
     // 🔢 숫자 파싱 (콤마 제거)
     parseNumber(str) {
+        // 입력값이 문자열이 아니거나 비어있으면 0 반환
+        if (typeof str !== 'string' || str.trim() === '') {
+            return 0;
+        }
         return parseInt(str.replace(/[^0-9]/g, '')) || 0;
     }
 
     // 🔢 숫자 포맷팅 (콤마 추가)
     formatNumber(num) {
+        // 입력값이 숫자가 아니거나 유효하지 않으면 "0" 반환
+        if (typeof num !== 'number' || isNaN(num)) {
+            return "0";
+        }
         return num.toLocaleString('ko-KR');
     }
 
