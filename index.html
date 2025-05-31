@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>티알코리아 주문시스템 V4.0</title>
+    <title>티알코리아 주문시스템 V3.0.0</title>
     
     <!-- 성능 최적화: DNS 프리페치 -->
     <link rel="dns-prefetch" href="//www.gstatic.com">
@@ -52,7 +52,8 @@
                 <div class="company-header">
                     <img src="logo.png" alt="티알코리아" class="company-logo" onerror="this.style.display='none'">
                     <h1>티알코리아</h1>
-                    <p>주문시스템 V3.0</p>
+                    <p class="company-slogan">고객과 함께 하는 최고의 비지니스 파트너</p>
+                    <p class="system-version">주문시스템 V3.0.0</p>
                 </div>
                 
                 <div class="login-form">
@@ -75,7 +76,7 @@
                 
                 <div class="login-footer">
                     <p>© 2025 주식회사 티알코리아</p>
-                    <p class="version">Version 3.0 - 완전 새로운 시작</p>
+                    <p class="version">Version 3.0.0 - 완전 새로운 시작</p>
                 </div>
             </div>
         </div>
@@ -86,7 +87,10 @@
             <!-- 📋 헤더 -->
             <header class="app-header">
                 <div class="header-content">
-                    <h1><i class="fas fa-shopping-cart"></i> 티알코리아</h1>
+                    <div class="header-left">
+                        <img src="logo.png" alt="티알코리아" class="header-logo" onerror="this.style.display='none'">
+                        <h1><i class="fas fa-shopping-cart"></i> 티알코리아</h1>
+                    </div>
                     <div class="user-info">
                         <span id="currentUserName"></span>
                         <button id="logoutBtn" class="logout-btn">
@@ -226,19 +230,21 @@
                     <span>목록보기</span>
                 </button>
             </nav>
+
+            <!-- 시스템 버전 표시 -->
+            <div class="system-version-footer">
+                <span>V3.0.0</span>
+            </div>
         </div>
     </div>
 
     <!-- 📢 알림 메시지 -->
     <div id="notification" class="notification hidden">
-        <span id="notificationText"></span>
-        <button onclick="this.parentElement.classList.add('hidden')">&times;</button>
-    </div>
-
-    <!-- ⏳ 로딩 스피너 -->
-    <div id="loadingSpinner" class="loading-spinner hidden">
-        <div class="spinner"></div>
-        <p>처리 중...</p>
+        <div class="notification-content">
+            <i class="notification-icon"></i>
+            <span id="notificationText"></span>
+        </div>
+        <button class="notification-close" onclick="this.parentElement.classList.add('hidden')">&times;</button>
     </div>
 
     <!-- JavaScript -->

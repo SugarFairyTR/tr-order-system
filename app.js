@@ -1,87 +1,92 @@
-// 🚀 티알코리아 주문시스템 V3.0 - 처음부터 새로 작성
-// 📅 2025년 1월 - 완전히 새로운 접근
+// 🚀 티알코리아 주문시스템 V3.0.0 - 완전히 새로운 시작
+// 📅 2025년 1월 - 모든 문제 해결
 
 class TROrderSystem {
     constructor() {
-        // 🔧 핵심 데이터
         this.currentUser = null;
         this.orders = [];
         this.database = null;
         this.users = {};
-        
-        // 🔥 Firebase 설정
-        this.firebaseConfig = null;
-        this.firebaseApp = null;
-        this.firebaseDb = null;
         this.isFirebaseEnabled = false;
+        this.firebaseDb = null;
         
-        console.log('🚀 티알코리아 주문시스템 V3.0 초기화...');
+        console.log('🚀 티알코리아 주문시스템 V3.0.0 초기화...');
     }
 
-    // 🚀 시스템 초기화 (순서대로 실행)
+    // 🎯 시스템 초기화
     async init() {
         try {
-            console.log('1️⃣ 사용자 설정 로드 중...');
-            await this.loadUsers();
+            this.showLoadingSpinner(true);
             
-            console.log('2️⃣ 제품 데이터베이스 로드 중...');
+            // 1. 사용자 설정 로드
+            await this.loadUserConfig();
+            
+            // 2. 데이터베이스 로드
             await this.loadDatabase();
             
-            console.log('3️⃣ Firebase 초기화 중...');
+            // 3. Firebase 초기화 (선택사항)
             await this.initFirebase();
             
-            console.log('4️⃣ 이벤트 리스너 설정 중...');
+            // 4. 로컬 주문 데이터 로드
+            this.loadOrdersFromLocal();
+            
+            // 5. UI 설정
             this.setupEventListeners();
+            this.populateUserSelect();
+            this.populateFormSelects();
             
-            console.log('5️⃣ 로컬 주문 데이터 로드 중...');
-            await this.loadOrders();
-            
-            console.log('✅ 시스템 초기화 완료!');
+            // 6. 로그인 화면 표시
             this.showLoginScreen();
             
+            console.log('✅ 시스템 초기화 완료');
+            
         } catch (error) {
-            console.error('❌ 초기화 실패:', error);
-            this.showError('시스템 초기화에 실패했습니다. 페이지를 새로고침해주세요.');
+            console.error('❌ 시스템 초기화 실패:', error);
+            this.showNotification('시스템 초기화에 실패했습니다.', 'error');
+        } finally {
+            this.showLoadingSpinner(false);
         }
     }
 
     // 👥 사용자 설정 로드
-    async loadUsers() {
+    async loadUserConfig() {
         try {
             const response = await fetch('./user_config.json');
             if (!response.ok) throw new Error('사용자 설정 파일을 찾을 수 없습니다.');
             
             const config = await response.json();
-            this.users = config.users || {};
+            this.users = config.users;
             
-            console.log(`✅ 사용자 ${Object.keys(this.users).length}명 로드 완료`);
-            this.populateUserSelect();
+            console.log('✅ 사용자 설정 로드 완료:', Object.keys(this.users).length + '명');
             
         } catch (error) {
             console.error('❌ 사용자 설정 로드 실패:', error);
-            // 기본 사용자로 대체
+            // 기본 사용자 설정
             this.users = {
-                "김정진": { "pin": "9736", "name": "김정진", "role": "대표이사" },
-                "박경범": { "pin": "5678", "name": "박경범", "role": "상무" }
+                "김정진": { pin: "9736", name: "김정진", role: "대표이사" },
+                "박경범": { pin: "5678", name: "박경범", role: "상무" },
+                "이선화": { pin: "0000", name: "이선화", role: "이사" },
+                "신준호": { pin: "3444", name: "신준호", role: "과장" },
+                "김다해": { pin: "9797", name: "김다해", role: "대리" },
+                "송현지": { pin: "1234", name: "송현지", role: "사원" }
             };
-            this.populateUserSelect();
         }
     }
 
-    // 🗄️ 제품 데이터베이스 로드
+    // 🗄️ 데이터베이스 로드
     async loadDatabase() {
         try {
             const response = await fetch('./database_optimized.json');
             if (!response.ok) throw new Error('데이터베이스 파일을 찾을 수 없습니다.');
             
-            this.database = await response.json();
-            console.log('✅ 제품 데이터베이스 로드 완료');
+            const data = await response.json();
+            this.database = data[0]; // 첫 번째 객체 사용
             
-            this.populateFormSelects();
+            console.log('✅ 데이터베이스 로드 완료');
             
         } catch (error) {
             console.error('❌ 데이터베이스 로드 실패:', error);
-            this.showError('제품 데이터베이스 로드에 실패했습니다.');
+            this.showNotification('데이터베이스 로드에 실패했습니다.', 'error');
         }
     }
 
@@ -90,30 +95,172 @@ class TROrderSystem {
         try {
             const response = await fetch('./firebase-config.json');
             if (!response.ok) {
-                console.log('ℹ️ Firebase 설정 파일이 없습니다. 로컬 모드로 실행됩니다.');
+                console.log('📝 Firebase 설정 없음, 로컬 모드로 실행');
                 return;
             }
             
-            this.firebaseConfig = await response.json();
+            const config = await response.json();
             
-            // Firebase 초기화
             if (typeof firebase !== 'undefined') {
-                this.firebaseApp = firebase.initializeApp(this.firebaseConfig);
+                firebase.initializeApp(config);
                 this.firebaseDb = firebase.database();
                 this.isFirebaseEnabled = true;
-                
-                console.log('🔥 Firebase 연결 성공!');
-                
-                // 실시간 동기화 설정
                 this.setupFirebaseSync();
                 
-            } else {
-                console.warn('⚠️ Firebase SDK가 로드되지 않았습니다.');
+                console.log('🔥 Firebase 초기화 완료');
             }
             
         } catch (error) {
-            console.error('❌ Firebase 초기화 실패:', error);
-            console.log('📱 로컬 모드로 계속 진행합니다.');
+            console.warn('⚠️ Firebase 초기화 실패, 로컬 모드로 계속:', error);
+        }
+    }
+
+    // 💾 로컬 주문 데이터 로드
+    loadOrdersFromLocal() {
+        try {
+            const saved = localStorage.getItem('tr_orders');
+            if (saved) {
+                this.orders = JSON.parse(saved);
+                console.log(`📋 로컬 주문 ${this.orders.length}개 로드 완료`);
+            }
+        } catch (error) {
+            console.error('❌ 로컬 주문 로드 실패:', error);
+            this.orders = [];
+        }
+    }
+
+    // 💾 로컬 주문 데이터 저장
+    saveOrdersToLocal() {
+        try {
+            localStorage.setItem('tr_orders', JSON.stringify(this.orders));
+            console.log('💾 로컬 저장 완료');
+        } catch (error) {
+            console.error('❌ 로컬 저장 실패:', error);
+        }
+    }
+
+    // 📢 알림 표시
+    showNotification(message, type = 'info') {
+        const notification = document.getElementById('notification');
+        const text = document.getElementById('notificationText');
+        
+        if (!notification || !text) return;
+        
+        text.textContent = message;
+        notification.className = `notification ${type} show`;
+        
+        // 3초 후 자동 숨김
+        setTimeout(() => {
+            notification.classList.remove('show');
+        }, 3000);
+        
+        console.log(`📢 ${type.toUpperCase()}: ${message}`);
+    }
+
+    // ⏳ 로딩 스피너 표시/숨김
+    showLoadingSpinner(show) {
+        const spinner = document.getElementById('loadingSpinner');
+        if (spinner) {
+            spinner.classList.toggle('hidden', !show);
+        }
+    }
+
+    // 💾 주문 저장
+    async saveOrder() {
+        try {
+            this.showLoadingSpinner(true);
+            
+            // 폼 데이터 수집
+            const orderData = this.collectFormData();
+            
+            // 유효성 검사
+            if (!this.validateOrderData(orderData)) {
+                return;
+            }
+            
+            // 주문 ID 생성
+            orderData.id = this.generateOrderId();
+            orderData.주문일시 = new Date().toISOString();
+            orderData.상태 = '대기';
+            
+            // 로컬 저장
+            this.orders.unshift(orderData);
+            this.saveOrdersToLocal();
+            
+            // Firebase 저장 (가능한 경우)
+            if (this.isFirebaseEnabled) {
+                await this.saveToFirebase(orderData);
+            }
+            
+            // 성공 알림
+            this.showNotification('주문이 성공적으로 저장되었습니다!', 'success');
+            
+            // 폼 초기화
+            this.resetForm();
+            
+            console.log('✅ 주문 저장 완료:', orderData.id);
+            
+        } catch (error) {
+            console.error('❌ 주문 저장 실패:', error);
+            this.showNotification('주문 저장에 실패했습니다.', 'error');
+        } finally {
+            this.showLoadingSpinner(false);
+        }
+    }
+
+    // 📝 폼 데이터 수집
+    collectFormData() {
+        return {
+            담당자: document.getElementById('manager')?.value || '',
+            판매처: document.getElementById('seller')?.value || '',
+            도착지: document.getElementById('destination')?.value || '',
+            분류: document.getElementById('category')?.value || '',
+            품목: document.getElementById('product')?.value || '',
+            수량: this.parseNumber(document.getElementById('quantity')?.value || '0'),
+            단가: this.parseNumber(document.getElementById('price')?.value || '0'),
+            도착일: document.getElementById('deliveryDate')?.value || '',
+            도착시간: document.getElementById('deliveryTime')?.value || '',
+            총금액: this.formatNumber(
+                this.parseNumber(document.getElementById('quantity')?.value || '0') * 
+                this.parseNumber(document.getElementById('price')?.value || '0')
+            ) + '원'
+        };
+    }
+
+    // ✅ 주문 데이터 유효성 검사
+    validateOrderData(data) {
+        const required = ['담당자', '판매처', '도착지', '분류', '품목', '도착일', '도착시간'];
+        
+        for (const field of required) {
+            if (!data[field]) {
+                this.showNotification(`${field}을(를) 선택해주세요.`, 'warning');
+                return false;
+            }
+        }
+        
+        if (data.수량 <= 0) {
+            this.showNotification('수량을 입력해주세요.', 'warning');
+            return false;
+        }
+        
+        if (data.단가 <= 0) {
+            this.showNotification('단가를 입력해주세요.', 'warning');
+            return false;
+        }
+        
+        return true;
+    }
+
+    // 🔥 Firebase 저장
+    async saveToFirebase(orderData) {
+        if (!this.isFirebaseEnabled) return;
+        
+        try {
+            await this.firebaseDb.ref('orders').child(orderData.id).set(orderData);
+            console.log('🔥 Firebase 저장 완료');
+        } catch (error) {
+            console.error('❌ Firebase 저장 실패:', error);
+            // Firebase 실패해도 로컬 저장은 유지
         }
     }
 
@@ -156,11 +303,11 @@ class TROrderSystem {
             });
         }
         
-        // 분류 옵션 (설탕, 밀가루, 등)
+        // 분류 옵션
         const categorySelect = document.getElementById('category');
-        if (categorySelect && this.database.products_by_category) {
+        if (categorySelect && this.database.분류) {
             categorySelect.innerHTML = '<option value="">분류 선택</option>';
-            Object.keys(this.database.products_by_category).forEach(category => {
+            this.database.분류.forEach(category => {
                 const option = document.createElement('option');
                 option.value = category;
                 option.textContent = category;
@@ -357,7 +504,7 @@ class TROrderSystem {
         
         sellerSelect.innerHTML = '<option value="">판매처 선택</option>';
         
-        const sellers = this.database.sellers_by_manager?.[selectedManager] || [];
+        const sellers = this.database.담당자별_거래처?.[selectedManager] || [];
         
         sellers.forEach(seller => {
             const option = document.createElement('option');
@@ -398,7 +545,7 @@ class TROrderSystem {
         
         productSelect.innerHTML = '<option value="">품목 선택</option>';
         
-        const products = this.database.products_by_category?.[selectedCategory] || [];
+        const products = this.database[selectedCategory] || [];
         
         products.forEach(product => {
             const option = document.createElement('option');
@@ -427,136 +574,6 @@ class TROrderSystem {
         const totalElement = document.getElementById('totalAmount');
         if (totalElement) {
             totalElement.textContent = this.formatNumber(total) + '원';
-        }
-    }
-
-    // 💾 주문 저장
-    async saveOrder() {
-        const orderData = this.getFormData();
-        
-        if (!this.validateOrderData(orderData)) {
-            return;
-        }
-        
-        try {
-            this.showLoading(true);
-            
-            const order = {
-                id: this.generateOrderId(),
-                ...orderData,
-                주문자: this.currentUser.name,
-                주문일시: new Date().toISOString(),
-                총금액: this.formatNumber(orderData.수량 * orderData.단가) + '원'
-            };
-            
-            // 로컬에 저장
-            this.orders.push(order);
-            this.saveOrdersToLocal();
-            
-            // Firebase에 저장 (가능한 경우)
-            let firebaseSaved = false;
-            if (this.isFirebaseEnabled) {
-                firebaseSaved = await this.saveToFirebase(order);
-            }
-            
-            // 성공 메시지
-            if (firebaseSaved) {
-                this.showNotification('✅ 주문이 클라우드에 저장되었습니다!\n모든 팀원이 실시간으로 확인할 수 있습니다.', 'success');
-            } else {
-                this.showNotification('💾 주문이 로컬에 저장되었습니다.', 'success');
-            }
-            
-            this.resetForm();
-            this.showScreen('orderList');
-            
-        } catch (error) {
-            console.error('❌ 주문 저장 실패:', error);
-            this.showNotification('주문 저장에 실패했습니다.', 'error');
-        } finally {
-            this.showLoading(false);
-        }
-    }
-
-    // 📋 폼 데이터 수집
-    getFormData() {
-        return {
-            담당자: document.getElementById('manager')?.value || '',
-            판매처: document.getElementById('seller')?.value || '',
-            도착지: document.getElementById('destination')?.value || '',
-            분류: document.getElementById('category')?.value || '',
-            품목: document.getElementById('product')?.value || '',
-            수량: this.parseNumber(document.getElementById('quantity')?.value || '0'),
-            단가: this.parseNumber(document.getElementById('price')?.value || '0'),
-            도착일: document.getElementById('deliveryDate')?.value || '',
-            도착시간: document.getElementById('deliveryTime')?.value || ''
-        };
-    }
-
-    // ✅ 주문 데이터 검증
-    validateOrderData(data) {
-        const required = ['담당자', '판매처', '도착지', '분류', '품목', '도착일', '도착시간'];
-        
-        for (const field of required) {
-            if (!data[field]) {
-                this.showNotification(`${field}을(를) 입력해주세요.`, 'warning');
-                return false;
-            }
-        }
-        
-        if (data.수량 <= 0) {
-            this.showNotification('수량을 입력해주세요.', 'warning');
-            return false;
-        }
-        
-        if (data.단가 <= 0) {
-            this.showNotification('단가를 입력해주세요.', 'warning');
-            return false;
-        }
-        
-        return true;
-    }
-
-    // 🔥 Firebase에 저장
-    async saveToFirebase(order) {
-        if (!this.isFirebaseEnabled) return false;
-        
-        try {
-            await this.firebaseDb.ref(`orders/${order.id}`).set({
-                ...order,
-                저장시간: firebase.database.ServerValue.TIMESTAMP,
-                저장자: this.currentUser.name
-            });
-            
-            console.log('🔥 Firebase 저장 성공:', order.id);
-            return true;
-            
-        } catch (error) {
-            console.error('🔥 Firebase 저장 실패:', error);
-            return false;
-        }
-    }
-
-    // 💾 로컬 저장
-    saveOrdersToLocal() {
-        try {
-            localStorage.setItem('tr_orders', JSON.stringify(this.orders));
-            console.log('💾 로컬 저장 완료');
-        } catch (error) {
-            console.error('💾 로컬 저장 실패:', error);
-        }
-    }
-
-    // 📖 주문 데이터 로드
-    async loadOrders() {
-        try {
-            const savedOrders = localStorage.getItem('tr_orders');
-            if (savedOrders) {
-                this.orders = JSON.parse(savedOrders);
-                console.log(`📖 로컬에서 ${this.orders.length}개 주문 로드`);
-            }
-        } catch (error) {
-            console.error('📖 주문 로드 실패:', error);
-            this.orders = [];
         }
     }
 
@@ -633,43 +650,11 @@ class TROrderSystem {
     formatNumber(num) {
         return num.toLocaleString('ko-KR');
     }
-
-    // ⏳ 로딩 표시
-    showLoading(show) {
-        const spinner = document.getElementById('loadingSpinner');
-        if (spinner) {
-            spinner.classList.toggle('hidden', !show);
-        }
-    }
-
-    // 📢 알림 메시지 표시
-    showNotification(message, type = 'info') {
-        const notification = document.getElementById('notification');
-        const text = document.getElementById('notificationText');
-        
-        if (!notification || !text) return;
-        
-        text.textContent = message;
-        notification.className = `notification ${type}`;
-        notification.classList.remove('hidden');
-        
-        // 3초 후 자동 숨김
-        setTimeout(() => {
-            notification.classList.add('hidden');
-        }, 3000);
-        
-        console.log(`📢 ${type.toUpperCase()}: ${message}`);
-    }
-
-    // ❌ 에러 표시
-    showError(message) {
-        this.showNotification(message, 'error');
-    }
 }
 
 // 🚀 앱 시작
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('🚀 티알코리아 주문시스템 V3.0 시작...');
+    console.log('🚀 티알코리아 주문시스템 V3.0.0 시작...');
     
     // 전역 앱 인스턴스 생성
     window.trOrderApp = new TROrderSystem();
