@@ -35,17 +35,14 @@ class TROrderSystem {
             this.populateUserSelect();
             this.populateFormSelects();
             
-            // 6. 로그인 화면 표시
-            this.showLoginScreen();
-            
             console.log('✅ 시스템 초기화 완료');
             
         } catch (error) {
             console.error('❌ 시스템 초기화 실패:', error);
             this.showNotification('시스템 초기화에 실패했습니다.', 'error');
-            // 오류가 발생해도 로그인 화면은 표시
-            this.showLoginScreen();
         } finally {
+            // 6. 로그인 화면 표시 (항상 실행)
+            this.showLoginScreen();
             this.showLoadingSpinner(false);
         }
     }
@@ -190,10 +187,14 @@ class TROrderSystem {
         if (spinner) {
             if (show) {
                 spinner.classList.remove('hidden');
+                spinner.style.display = 'flex';
             } else {
                 spinner.classList.add('hidden');
+                spinner.style.display = 'none';
             }
             console.log(`⏳ 로딩 스피너: ${show ? '표시' : '숨김'}`);
+        } else {
+            console.error('❌ 로딩 스피너 요소를 찾을 수 없습니다');
         }
     }
 
@@ -206,7 +207,9 @@ class TROrderSystem {
         
         if (loginScreen && mainApp) {
             loginScreen.classList.remove('hidden');
+            loginScreen.style.display = 'flex';
             mainApp.classList.add('hidden');
+            mainApp.style.display = 'none';
             
             // 로그인 폼 초기화
             const loginUser = document.getElementById('loginUser');
@@ -218,6 +221,8 @@ class TROrderSystem {
             console.log('✅ 로그인 화면 표시 완료');
         } else {
             console.error('❌ 로그인 화면 요소를 찾을 수 없습니다');
+            console.log('loginScreen:', loginScreen);
+            console.log('mainApp:', mainApp);
         }
     }
 
@@ -230,7 +235,9 @@ class TROrderSystem {
         
         if (loginScreen && mainApp) {
             loginScreen.classList.add('hidden');
+            loginScreen.style.display = 'none';
             mainApp.classList.remove('hidden');
+            mainApp.style.display = 'flex';
             
             // 사용자 정보 표시
             const userDisplay = document.getElementById('currentUserName');
@@ -256,6 +263,9 @@ class TROrderSystem {
         const loginBtn = document.getElementById('loginBtn');
         if (loginBtn) {
             loginBtn.addEventListener('click', () => this.handleLogin());
+            console.log('✅ 로그인 버튼 이벤트 설정');
+        } else {
+            console.error('❌ 로그인 버튼을 찾을 수 없습니다');
         }
         
         // 로그아웃 버튼
@@ -384,10 +394,13 @@ class TROrderSystem {
 
     // 🔐 로그인 처리
     handleLogin() {
-        console.log('🔐 로그인 처리 시작...');
+        console.log('🔐 로그인 시도...');
         
         const selectedUser = document.getElementById('loginUser').value;
         const enteredPin = document.getElementById('loginPin').value;
+        
+        console.log('선택된 사용자:', selectedUser);
+        console.log('입력된 PIN:', enteredPin ? '****' : '없음');
         
         if (!selectedUser) {
             this.showNotification('담당자를 선택해주세요.', 'warning');
@@ -772,12 +785,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const spinner = document.getElementById('loadingSpinner');
         if (spinner) {
             spinner.classList.add('hidden');
+            spinner.style.display = 'none';
         }
         
         // 기본 로그인 화면 표시
         const loginScreen = document.getElementById('loginScreen');
         if (loginScreen) {
             loginScreen.classList.remove('hidden');
+            loginScreen.style.display = 'flex';
         }
     }
 }); 
