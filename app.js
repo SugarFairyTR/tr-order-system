@@ -358,13 +358,29 @@ class OrderApp {
 
     // 메인 앱 표시
     showMainApp() {
-        document.getElementById('loginScreen').classList.remove('active');
-        document.getElementById('mainApp').classList.remove('hidden');
+        console.log('🔄 메인 앱 화면 표시 시작...');
         
-        // 사용자 이름 표시
-        const currentUserElement = document.getElementById('currentUser');
-        if (currentUserElement && this.currentUser) {
-            currentUserElement.textContent = `${this.currentUser.name} (${this.currentUser.role})`;
+        try {
+            // 로그인 화면 숨기기
+            const loginScreen = document.getElementById('loginScreen');
+            const mainApp = document.getElementById('mainApp');
+            
+            if (loginScreen && mainApp) {
+                loginScreen.classList.remove('active');
+                loginScreen.style.display = 'none';
+                
+                mainApp.classList.remove('hidden');
+                mainApp.style.display = 'block';
+                
+                // 기본 화면을 주문입력으로 설정
+                this.showScreen('orderForm');
+                
+                console.log('✅ 메인 앱 화면 표시 완료');
+            } else {
+                console.error('❌ 화면 요소를 찾을 수 없습니다');
+            }
+        } catch (error) {
+            console.error('❌ 화면 전환 중 오류:', error);
         }
     }
 
@@ -393,46 +409,45 @@ class OrderApp {
 
     // 로그인 처리
     async handleLogin() {
-        const managerSelect = document.getElementById('loginManager');
-        const pinInput = document.getElementById('loginPin');
+        const selectedManager = document.getElementById('loginManager').value;
+        const enteredPin = document.getElementById('loginPin').value;
         
-        const selectedManager = managerSelect.value;
-        const enteredPin = pinInput.value;
-
-        if (!selectedManager) {
-            this.showNotification('담당자를 선택해주세요.', 'error');
+        console.log('🔐 로그인 시도:', selectedManager, enteredPin);
+        
+        if (!selectedManager || !enteredPin) {
+            this.showNotification('담당자와 PIN을 모두 입력해주세요.', 'error');
             return;
         }
-
-        if (!enteredPin || enteredPin.length !== 4) {
-            this.showNotification('4자리 PIN 번호를 입력해주세요.', 'error');
-            return;
-        }
-
+        
         // PIN 확인
         const user = this.userConfig.users[selectedManager];
         if (!user || user.pin !== enteredPin) {
             this.showNotification('PIN 번호가 틀렸습니다.', 'error');
-            pinInput.value = '';
+            document.getElementById('loginPin').value = '';
             return;
         }
-
-        // 로그인 성공
-        this.currentUser = user;
-        this.isLoggedIn = true;
-
-        // 로그인 정보 저장 (세션 만료 없음)
-        const loginData = {
-            user: user,
-            loginTime: new Date().getTime()
-        };
-        localStorage.setItem('trkorea_login', JSON.stringify(loginData));
-
-        // 성공 메시지
-        this.showNotification(`${user.name}님, 환영합니다!`, 'success');
-
-        // 메인 앱 초기화
-        await this.initMainApp();
+        
+        try {
+            // 로그인 성공 처리
+            this.currentUser = selectedManager;
+            this.isLoggedIn = true;
+            
+            // 사용자별 판매처 설정
+            this.setupUserSellerOptions();
+            
+            // 메인 앱 초기화
+            await this.initMainApp();
+            
+            // 화면 전환
+            this.showMainApp();
+            
+            this.showNotification(`환영합니다, ${selectedManager}님!`, 'success');
+            console.log('✅', selectedManager, '로그인 성공');
+            
+        } catch (error) {
+            console.error('❌ 로그인 처리 중 오류:', error);
+            this.showNotification('로그인 처리 중 오류가 발생했습니다.', 'error');
+        }
     }
 
     // 로그아웃 처리
@@ -2885,6 +2900,27 @@ class OrderApp {
                 break;
         }
 }
+
+    // formatNumber 함수 수정 (634번째 줄 근처)
+    formatNumber(num) {
+        // undefined, null, 빈 문자열 체크 추가
+        if (num === undefined || num === null || num === '') {
+            return '0';
+        }
+        
+        // 문자열인 경우 숫자로 변환
+        if (typeof num === 'string') {
+            num = num.replace(/[^0-9.-]/g, ''); // 숫자가 아닌 문자 제거
+            num = parseFloat(num) || 0;
+        }
+        
+        // 숫자가 아닌 경우 0 반환
+        if (typeof num !== 'number' || isNaN(num)) {
+            return '0';
+        }
+        
+        return num.toLocaleString();
+    }
 }
 
 // 앱 초기화
