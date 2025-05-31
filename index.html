@@ -23,6 +23,10 @@
         <div id="loginScreen" class="screen active">
             <div class="login-container">
                 <div class="login-header">
+                    <!-- 🏢 회사 로고 이미지 -->
+                    <div class="company-logo">
+                        <img src="./티알코리아 CI LOGO ONLY.png" alt="티알코리아 로고" class="logo-image">
+                    </div>
                     <h1>🏢 티알코리아 주문시스템</h1>
                     <p>V2.0 - 모바일 최적화</p>
                 </div>
@@ -48,13 +52,21 @@
         </div>
 
         <!-- 📱 메인 앱 화면 -->
-        <div id="mainApp" class="screen" style="display: none;">
+        <div id="mainApp" class="screen">
             <header class="app-header">
                 <div class="header-content">
-                    <h1>📋 주문 관리</h1>
-                    <div class="user-info">
-                        <span id="currentUserName">사용자</span>
-                        <button id="logoutBtn" class="logout-btn">로그아웃</button>
+                    <!-- 🏢 작은 로고 -->
+                    <div class="header-logo">
+                        <img src="./티알코리아 CI LOGO ONLY.png" alt="티알코리아" class="header-logo-image">
+                    </div>
+                    <div class="header-info">
+                        <h1>📋 주문 관리</h1>
+                        <div class="user-info">
+                            <span id="currentUserName">사용자</span>
+                            <button id="logoutBtn" class="logout-btn">
+                                <i class="fas fa-sign-out-alt"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -62,37 +74,44 @@
             <main class="app-main">
                 <!-- 📝 주문 입력 폼 -->
                 <section class="order-form-section">
-                    <h2>📝 신규 주문 입력</h2>
+                    <div class="section-header">
+                        <h2><i class="fas fa-plus-circle"></i> 신규 주문 입력</h2>
+                    </div>
                     
                     <form id="orderForm" class="order-form">
                         <div class="form-row">
                             <div class="form-group">
-                                <label>📅 주문일</label>
-                                <input type="date" id="orderDate" class="form-control">
+                                <label for="orderDate">📅 주문일</label>
+                                <input type="date" id="orderDate" class="form-control" required>
                             </div>
                             
                             <div class="form-group">
-                                <label>👤 담당자</label>
-                                <select id="manager" class="form-control">
-                                    <option value="">담당자 선택</option>
+                                <label for="orderTime">🕐 도착시간</label>
+                                <select id="orderTime" class="form-control">
+                                    <option value="">시간 선택</option>
                                 </select>
                             </div>
                         </div>
 
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>🏢 판매처</label>
-                                <select id="seller" class="form-control">
-                                    <option value="">판매처 선택</option>
-                                </select>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>📍 도착지</label>
-                                <select id="destination" class="form-control">
-                                    <option value="">도착지 선택</option>
-                                </select>
-                            </div>
+                        <div class="form-group">
+                            <label for="manager">👤 담당자</label>
+                            <select id="manager" class="form-control" required>
+                                <option value="">담당자 선택</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="seller">🏢 판매처</label>
+                            <select id="seller" class="form-control" required>
+                                <option value="">판매처 선택</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="destination">📍 도착지</label>
+                            <select id="destination" class="form-control" required>
+                                <option value="">도착지 선택</option>
+                            </select>
                         </div>
 
                         <div class="form-group">
@@ -110,21 +129,21 @@
                         </div>
 
                         <div class="form-group">
-                            <label>📦 품목</label>
-                            <select id="product" class="form-control">
+                            <label for="product">📦 품목</label>
+                            <select id="product" class="form-control" required>
                                 <option value="">품목 선택</option>
                             </select>
                         </div>
 
                         <div class="form-row">
                             <div class="form-group">
-                                <label>📊 수량 (KG)</label>
-                                <input type="text" id="quantity" class="form-control" placeholder="수량 입력">
+                                <label for="quantity">📊 수량 (KG)</label>
+                                <input type="text" id="quantity" class="form-control" placeholder="수량 입력" required>
                             </div>
                             
                             <div class="form-group">
-                                <label>💰 단가 (원)</label>
-                                <input type="text" id="price" class="form-control" placeholder="단가 입력">
+                                <label for="price">💰 단가 (원)</label>
+                                <input type="text" id="price" class="form-control" placeholder="단가 입력" required>
                             </div>
                         </div>
 
@@ -134,16 +153,16 @@
                         </div>
 
                         <div class="form-group">
-                            <label>📝 비고</label>
-                            <textarea id="notes" class="form-control" placeholder="추가 메모사항"></textarea>
+                            <label for="notes">📝 비고</label>
+                            <textarea id="notes" class="form-control" rows="3" placeholder="추가 메모사항"></textarea>
                         </div>
 
                         <div class="form-actions">
                             <button type="button" id="saveOrderBtn" class="btn btn-primary">
-                                💾 주문 저장
+                                <i class="fas fa-save"></i> 주문 저장
                             </button>
                             <button type="button" id="resetFormBtn" class="btn btn-secondary">
-                                🔄 초기화
+                                <i class="fas fa-redo"></i> 초기화
                             </button>
                         </div>
                     </form>
@@ -151,9 +170,15 @@
 
                 <!-- 📋 주문 목록 -->
                 <section class="order-list-section">
-                    <h2>📋 주문 목록</h2>
+                    <div class="section-header">
+                        <h2><i class="fas fa-list"></i> 주문 목록</h2>
+                        <div class="order-stats">
+                            <span id="orderCount">총 0건</span>
+                        </div>
+                    </div>
                     <div id="orderList" class="order-list">
                         <div class="empty-state">
+                            <i class="fas fa-inbox fa-3x"></i>
                             <p>📝 등록된 주문이 없습니다</p>
                             <p>새 주문을 등록해보세요!</p>
                         </div>
@@ -164,14 +189,23 @@
     </div>
 
     <!-- 🔄 로딩 스피너 -->
-    <div id="loadingSpinner" class="loading-spinner" style="display: none;">
+    <div id="loadingSpinner" class="loading-spinner">
         <div class="spinner"></div>
         <p>처리 중...</p>
     </div>
 
     <!-- 📢 알림 -->
-    <div id="notification" class="notification" style="display: none;"></div>
+    <div id="notification" class="notification"></div>
 
+    <script>
+        console.log('✅ 티알코리아 주문시스템 V2.0 스크립트 로드 완료');
+        
+        // DOM 로드 완료 시 앱 초기화
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 DOM 로드 완료 - 앱 초기화 시작');
+            window.orderApp = new OrderSystemApp();
+        });
+    </script>
     <script src="app.js"></script>
 </body>
 </html>
