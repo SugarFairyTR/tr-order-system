@@ -14,111 +14,115 @@ class OrderSystemApp {
         this.init();
     }
 
-    // 🚀 앱 초기화 (디버깅 강화)
+    // 🚀 앱 초기화 (개선된 버전)
     async init() {
         console.log('🚀 티알코리아 주문시스템 V2.0 초기화 시작...');
         
         try {
-            // 1️⃣ DOM 요소 확인
-            const loginScreen = document.getElementById('loginScreen');
-            const mainApp = document.getElementById('mainApp');
+            // 📱 반응형 디자인 체크
+            this.checkResponsiveDesign();
             
-            console.log('🔍 DOM 요소 확인:', {
-                loginScreen: !!loginScreen,
-                mainApp: !!mainApp
-            });
-            
-            // 2️⃣ 데이터 로드
+            // 👥 사용자 설정 로드 (개선됨)
             await this.loadUserConfig();
-            await this.loadDatabase();
-            await this.loadOrders();
             
-            // 3️⃣ 이벤트 설정
+            // 🗄️ 데이터베이스 로드
+            await this.loadDatabase();
+            
+            // 🎯 이벤트 리스너 설정
             this.setupEventListeners();
             
-            // 4️⃣ UI 초기화
-            this.populateUserSelect();
-            this.populateFormSelects();
-            this.setDefaultDate();
+            // 📅 기본값 설정
+            this.setDefaultValues();
             
-            console.log('✅ 앱 초기화 완료!');
+            // 🔄 Service Worker 등록
+            this.registerServiceWorker();
+            
+            // 🔐 로그인 화면 표시
+            this.showLoginScreen();
+            
+            console.log('✅ 시스템 초기화 완료');
             
         } catch (error) {
-            console.error('❌ 앱 초기화 실패:', error);
-            this.showNotification('앱 초기화에 실패했습니다', 'error');
+            console.error('❌ 시스템 초기화 실패:', error);
+            this.showNotification('시스템 초기화에 실패했습니다. 페이지를 새로고침해주세요.', 'error');
         }
     }
 
-    // 👥 사용자 설정 로드
+    // 📁 사용자 설정 로드 (개선된 버전)
     async loadUserConfig() {
+        console.log('👥 사용자 설정 로드 시작...');
+        
         try {
-            console.log('📂 사용자 설정 로드 중...');
+            // 🔄 여러 방법으로 user_config.json 로드 시도
             const response = await fetch('./user_config.json');
             
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
-            const config = await response.json();
-            this.users = config.users || {};
+            const userConfig = await response.json();
             
-            console.log('✅ 사용자 설정 로드 완료:', Object.keys(this.users));
+            if (!userConfig || !userConfig.users) {
+                throw new Error('사용자 데이터가 올바르지 않습니다');
+            }
+            
+            this.users = userConfig.users;
+            console.log(`✅ 사용자 ${Object.keys(this.users).length}명 로드 완료`);
+            
+            // 🔐 로그인 옵션 업데이트
+            this.populateUserSelect();
             
         } catch (error) {
             console.error('❌ 사용자 설정 로드 실패:', error);
-            this.showNotification('사용자 설정을 불러올 수 없습니다', 'error');
+            
+            // 🚨 대체 방법: 하드코딩된 사용자 데이터 사용
+            console.log('🔄 대체 사용자 데이터 로드 중...');
+            this.users = this.getDefaultUsers();
+            this.populateUserSelect();
+            
+            // 사용자에게 알림
+            this.showNotification(
+                '⚠️ 사용자 설정 파일을 로드할 수 없어 기본 설정을 사용합니다.\n' +
+                '관리자에게 문의하세요.', 
+                'warning'
+            );
         }
     }
 
-    // 🗄️ 데이터베이스 로드
-    async loadDatabase() {
-        try {
-            console.log('📂 데이터베이스 로드 시작...');
-            
-            const response = await fetch('./database_optimized.json');
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+    // 🚨 기본 사용자 데이터 (대체용)
+    getDefaultUsers() {
+        return {
+            "김정진": {
+                "pin": "9736",
+                "name": "김정진",
+                "role": "대표이사"
+            },
+            "박경범": {
+                "pin": "5678", 
+                "name": "박경범",
+                "role": "상무"
+            },
+            "이선화": {
+                "pin": "0000",
+                "name": "이선화",
+                "role": "이사"
+            },
+            "신준호": {
+                "pin": "3444",
+                "name": "신준호", 
+                "role": "과장"
+            },
+            "김다해": {
+                "pin": "9797",
+                "name": "김다해",
+                "role": "대리"
+            },
+            "송현지": {
+                "pin": "1234",
+                "name": "송현지",
+                "role": "사원"
             }
-            
-            this.database = await response.json();
-            console.log('✅ 데이터베이스 로드 완료:', this.database);
-            
-            // 데이터 구조 확인
-            if (this.database && this.database.sellers_by_manager) {
-                console.log('👥 담당자별 판매처 데이터 확인됨');
-            }
-            if (this.database && this.database.destinations_by_seller) {
-                console.log('📍 판매처별 도착지 데이터 확인됨');
-            }
-            if (this.database && this.database.categories) {
-                console.log('📦 분류별 품목 데이터 확인됨');
-            }
-            
-        } catch (error) {
-            console.error('❌ 데이터베이스 로드 실패:', error);
-            this.showNotification('데이터베이스 로드에 실패했습니다', 'error');
-        }
-    }
-
-    // 📋 주문 데이터 로드
-    async loadOrders() {
-        try {
-            console.log('📋 주문 데이터 로드 중...');
-            
-            // localStorage에서 주문 데이터 로드
-            const savedOrders = localStorage.getItem('orders');
-            if (savedOrders) {
-                this.orders = JSON.parse(savedOrders);
-                console.log(`✅ ${this.orders.length}개 주문 로드 완료`);
-            } else {
-                this.orders = [];
-                console.log('📝 새로운 주문 목록 생성');
-            }
-            
-        } catch (error) {
-            console.error('❌ 주문 데이터 로드 실패:', error);
-            this.orders = [];
-        }
+        };
     }
 
     // 🎯 이벤트 리스너 설정
@@ -376,25 +380,46 @@ class OrderSystemApp {
         }
     }
 
-    // 👥 로그인 사용자 선택 옵션 채우기
+    // 👥 로그인 사용자 선택 옵션 채우기 (개선된 버전)
     populateUserSelect() {
         const loginUser = document.getElementById('loginUser');
-        if (!loginUser) return;
+        if (!loginUser) {
+            console.error('❌ 로그인 사용자 select 요소를 찾을 수 없습니다');
+            return;
+        }
+        
+        console.log('👥 사용자 선택 옵션 업데이트 시작...');
         
         // 🧹 기존 옵션 제거 (첫 번째 제외)
         while (loginUser.children.length > 1) {
             loginUser.removeChild(loginUser.lastChild);
         }
         
+        // ✅ 사용자가 있는지 확인
+        if (!this.users || Object.keys(this.users).length === 0) {
+            console.warn('⚠️ 사용자 데이터가 없습니다');
+            
+            // 기본 옵션 추가
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = '사용자 데이터 없음';
+            option.disabled = true;
+            loginUser.appendChild(option);
+            return;
+        }
+        
         // 👥 사용자 목록 추가
         Object.keys(this.users).forEach(userName => {
+            const user = this.users[userName];
             const option = document.createElement('option');
             option.value = userName;
-            option.textContent = `${userName} (${this.users[userName].role})`;
+            option.textContent = `${userName} (${user.role || '역할 미정'})`;
             loginUser.appendChild(option);
+            
+            console.log(`👤 사용자 추가: ${userName}`);
         });
         
-        console.log('👥 로그인 사용자 옵션 업데이트 완료');
+        console.log(`✅ 사용자 선택 옵션 ${Object.keys(this.users).length}개 업데이트 완료`);
     }
 
     // 📝 폼 선택 옵션들 채우기
@@ -1276,6 +1301,42 @@ class OrderSystemApp {
         } finally {
             this.hideLoading();
         }
+    }
+
+    // 📱 반응형 디자인 체크
+    checkResponsiveDesign() {
+        const isMobile = window.innerWidth <= 768;
+        const isTouch = 'ontouchstart' in window;
+        
+        console.log(`📱 디바이스 정보: ${isMobile ? '모바일' : '데스크톱'}, 터치: ${isTouch ? '지원' : '미지원'}`);
+        
+        // CSS 변수로 디바이스 정보 전달
+        document.documentElement.style.setProperty('--is-mobile', isMobile ? '1' : '0');
+        document.documentElement.style.setProperty('--is-touch', isTouch ? '1' : '0');
+        
+        // 모바일에서 추가 최적화
+        if (isMobile) {
+            document.body.classList.add('mobile-device');
+            
+            // iOS Safari 주소창 높이 처리
+            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+                this.handleIOSViewport();
+            }
+        }
+    }
+
+    // 🍎 iOS Safari 뷰포트 처리
+    handleIOSViewport() {
+        const setViewportHeight = () => {
+            const vh = window.innerHeight * 0.01;
+            document.documentElement.style.setProperty('--vh', `${vh}px`);
+        };
+        
+        setViewportHeight();
+        window.addEventListener('resize', setViewportHeight);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(setViewportHeight, 100);
+        });
     }
 }
 

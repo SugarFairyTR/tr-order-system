@@ -554,3 +554,298 @@ body {
     color: var(--text-muted);
     font-size: var(--font-size-sm);
 }
+
+/* 🔧 기본 뷰포트 설정 확인용 */
+html {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+}
+
+/* 📱 모바일 최우선 접근법 */
+.app-container {
+    width: 100%;
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* 🔐 로그인 화면 반응형 개선 */
+@media (max-width: 768px) {
+    #loginScreen {
+        padding: var(--spacing-sm);
+    }
+    
+    .login-container {
+        padding: var(--spacing-lg);
+        margin: var(--spacing-sm);
+        max-width: none;
+        width: calc(100% - 2rem);
+    }
+    
+    .logo-image {
+        max-width: 150px;
+        max-height: 90px;
+    }
+    
+    .login-header h1 {
+        font-size: var(--font-size-xl);
+    }
+    
+    .form-control {
+        font-size: 16px; /* iOS 줌 방지 */
+        padding: var(--spacing-md);
+    }
+}
+
+/* 📱 메인 앱 반응형 개선 */
+@media (max-width: 768px) {
+    .app-header {
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+    
+    .header-content {
+        flex-direction: row;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+    
+    .header-logo {
+        margin-right: var(--spacing-sm);
+    }
+    
+    .header-logo-image {
+        max-width: 40px;
+        max-height: 30px;
+    }
+    
+    .header-info h1 {
+        font-size: var(--font-size-lg);
+    }
+    
+    .user-info {
+        gap: var(--spacing-sm);
+    }
+    
+    .logout-btn {
+        padding: var(--spacing-sm);
+        font-size: var(--font-size-xs);
+    }
+}
+
+/* 📝 폼 반응형 개선 */
+@media (max-width: 768px) {
+    .app-main {
+        padding: var(--spacing-sm);
+    }
+    
+    .order-form-section, .order-list-section {
+        padding: var(--spacing-md);
+        margin-bottom: var(--spacing-md);
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+        text-align: left;
+    }
+    
+    .section-header h2 {
+        font-size: var(--font-size-lg);
+    }
+    
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+    
+    .btn {
+        width: 100%;
+        padding: var(--spacing-md);
+        font-size: var(--font-size-base);
+        min-height: 48px;
+    }
+}
+
+/* 📂 카테고리 라디오 버튼 모바일 최적화 */
+@media (max-width: 768px) {
+    .category-options {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+    
+    .radio-option {
+        justify-content: flex-start;
+        padding: var(--spacing-md);
+        min-height: 54px;
+        text-align: left;
+    }
+    
+    .radio-label {
+        font-size: var(--font-size-base);
+    }
+}
+
+/* 💰 총액 표시 모바일 최적화 */
+@media (max-width: 768px) {
+    .total-display {
+        font-size: var(--font-size-lg);
+        padding: var(--spacing-md);
+    }
+}
+
+/* 📋 주문 목록 모바일 최적화 */
+@media (max-width: 768px) {
+    .order-list {
+        max-height: 300px;
+    }
+    
+    .order-item {
+        padding: var(--spacing-sm);
+        margin-bottom: var(--spacing-sm);
+    }
+    
+    .order-stats {
+        font-size: var(--font-size-xs);
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+}
+
+/* 📢 알림 모바일 최적화 */
+@media (max-width: 768px) {
+    .notification {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+        font-size: var(--font-size-sm);
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+}
+
+/* 🔄 로딩 스피너 모바일 최적화 */
+@media (max-width: 768px) {
+    .spinner {
+        width: 32px;
+        height: 32px;
+    }
+    
+    .loading-spinner p {
+        font-size: var(--font-size-sm);
+    }
+}
+
+/* 📱 아주 작은 화면 (480px 이하) */
+@media (max-width: 480px) {
+    :root {
+        --spacing-xs: 0.125rem;
+        --spacing-sm: 0.25rem;
+        --spacing-md: 0.75rem;
+        --spacing-lg: 1rem;
+        --spacing-xl: 1.5rem;
+    }
+    
+    .login-container {
+        padding: var(--spacing-md);
+        margin: var(--spacing-xs);
+        width: calc(100% - 1rem);
+    }
+    
+    .app-main {
+        padding: var(--spacing-xs);
+    }
+    
+    .order-form-section, .order-list-section {
+        padding: var(--spacing-sm);
+        margin-bottom: var(--spacing-sm);
+    }
+    
+    .form-group {
+        margin-bottom: var(--spacing-md);
+    }
+    
+    .logo-image {
+        max-width: 120px;
+        max-height: 70px;
+    }
+    
+    .header-logo-image {
+        max-width: 32px;
+        max-height: 24px;
+    }
+}
+
+/* 🖥️ 데스크톱 최적화 (768px 이상) */
+@media (min-width: 769px) {
+    .app-main {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: var(--spacing-xl);
+    }
+    
+    .login-container {
+        max-width: 450px;
+    }
+    
+    .form-row {
+        display: flex;
+        gap: var(--spacing-lg);
+    }
+    
+    .form-actions {
+        display: flex;
+        gap: var(--spacing-lg);
+    }
+    
+    .category-options {
+        display: flex;
+        gap: var(--spacing-lg);
+    }
+    
+    .order-list {
+        max-height: 500px;
+    }
+}
+
+/* 🖥️ 대형 데스크톱 최적화 (1200px 이상) */
+@media (min-width: 1200px) {
+    .app-main {
+        max-width: 1400px;
+        padding: var(--spacing-xl) var(--spacing-xl);
+    }
+    
+    .login-container {
+        max-width: 500px;
+    }
+    
+    .section-header h2 {
+        font-size: var(--font-size-2xl);
+    }
+}
+
+/* 📱 터치 디바이스 최적화 */
+@media (hover: none) and (pointer: coarse) {
+    .btn, .form-control, .radio-option {
+        min-height: 48px;
+    }
+    
+    .form-control {
+        font-size: 16px; /* iOS 줌 방지 */
+    }
+    
+    .radio-option:hover {
+        transform: none; /* 터치에서는 호버 효과 제거 */
+    }
+}
+
+/* 🖱️ 마우스 디바이스 최적화 */
+@media (hover: hover) and (pointer: fine) {
+    .btn:hover, .radio-option:hover {
+        transform: translateY(-1px);
+    }
+}
